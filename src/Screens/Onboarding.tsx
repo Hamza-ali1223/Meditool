@@ -5,27 +5,22 @@ import { vs, s } from 'react-native-size-matters';
 import colors from '../colors';
 import MainButton from '../components/MainButton';
 import { useNavigation } from '@react-navigation/native';
+import images from '../assets/img/images';
 
-const Onboarding = () => 
-  {
-    const Navigation=useNavigation();
+const Onboarding = () => {
+  const Navigation = useNavigation();
 
-    const [mobileNumber,SetmobileNumber] = useState("")
-    
+  const [mobileNumber, SetmobileNumber] = useState('');
 
-    const handlePress=()=>
-    {
-      Navigation.navigate("Login");
-    }
+  const handlePress = () => {
+    Navigation.navigate('Login');
+  };
   return (
     <SafeAreaView style={styles.mainContainer}>
-      <ImageBackground
-        source={require('../assets/img/splash.png')}
-        style={{ flex: 1 }}
-      >
+      <ImageBackground source={images.splash} style={{ flex: 1 }}>
         <View>
           <Image
-            source={require('../assets/img/doctor.png')}
+            source={images.doctor}
             style={styles.doctorImage}
             resizeMode="contain"
           ></Image>
@@ -40,14 +35,15 @@ const Onboarding = () =>
                 alignSelf: 'center',
                 paddingHorizontal: s(5),
                 textAlign: 'center',
-                fontFamily:'Lato-Regular',
-                color:'grey',
+                fontFamily: 'Lato-Regular',
+                color: 'grey',
               }}
             >
-              Book an appointment with your favourite doctors. Chat with doctor via appointment letter and get consultation
+              Book an appointment with your favourite doctors. Chat with doctor
+              via appointment letter and get consultation
             </Text>
-            <View style={{bottom:-180,position:'absolute',}}>
-              <MainButton Label={"Get Started"} onPress={handlePress}  />
+            <View style={{ bottom: -180, position: 'absolute' }}>
+              <MainButton Label={'Get Started'} onPress={handlePress} />
             </View>
           </View>
         </View>

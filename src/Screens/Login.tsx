@@ -7,21 +7,42 @@ import {
   View,
   Platform,
   ScrollView,
-  TouchableHighlight,
   TouchableOpacity,
+  Alert,
 } from 'react-native';
-import React from 'react';
+import React, { useCallback, useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { vs, s } from 'react-native-size-matters';
 import colors from '../colors';
 import MainButton from '../components/MainButton';
 import { useNavigation } from '@react-navigation/native';
+import images from '../assets/img/images';
 
 const Login = () => {
   const Navigation = useNavigation();
+  const [mobileNumber, SetmobileNumber] = useState<string>('');
+  const handlePress = useCallback(() => {
+    if (isValidPakistaniMobileNumber(mobileNumber)) {
+      Navigation.navigate('OTP', { mobileNumber: mobileNumber });
+    } else {
+      Alert.alert('Incorrect Number');
+    }
+  }, [mobileNumber]);
 
-  const handlePress = () => {
-    Navigation.navigate('OTP');
+  const isValidPakistaniMobileNumber = mobileNumber => {
+    // This regex is designed to match all common formats for Pakistani mobile numbers[1][3].
+    const pkMobileRegex = /^((\+92)?(0092)?(92)?(0)?)(3)([0-9]{9})$/;
+
+    // .test() returns true if the string matches the regex, and false if it doesn't.
+    if (pkMobileRegex.test(mobileNumber)) {
+      console.log(`✅ Validation Passed: "${mobileNumber}" is a valid format.`);
+      return true;
+    } else {
+      console.log(
+        `❌ Validation Failed: "${mobileNumber}" is not a valid format.`,
+      );
+      return false;
+    }
   };
   return (
     <SafeAreaView style={styles.mainContainer}>
@@ -36,7 +57,7 @@ const Login = () => {
         >
           <View>
             <Image
-              source={require('../assets/img/facility.png')}
+              source={images.facility}
               style={styles.doctorImage}
               resizeMode="contain"
             />
@@ -56,24 +77,22 @@ const Login = () => {
                   marginTop: vs(10),
                 }}
               >
-                <Text
+                <TextInput
+                  onChangeText={SetmobileNumber}
+                  placeholder="Phone Number"
                   style={{
+                    flex: 1,
+                    paddingHorizontal: s(10),
+                    color: 'black',
                     fontSize: 18,
                     fontFamily: 'Lato-Regular',
-                    paddingHorizontal: s(10),
                   }}
-                >
-                  +92|
-                </Text>
-                <TextInput
-                  placeholder="Phone Number"
-                  style={{ flex: 1 }}
                   keyboardType="phone-pad"
                 />
               </View>
               {/* Move the button here, not absolutely positioned */}
               <View style={{ marginTop: vs(40), width: '100%' }}>
-                <MainButton Label={'Login with Mobile'} onPress={handlePress}/>
+                <MainButton Label={'Login with Mobile'} onPress={handlePress} />
               </View>
               <TouchableOpacity>
                 <View

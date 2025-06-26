@@ -10,7 +10,6 @@ import React, { useCallback } from 'react';
 import colors from '../../colors';
 import SearchBar from '../../components/SearchBar/SearchBar';
 import { s, vs } from 'react-native-size-matters';
-import Categories from '../../components/Categories/categories';
 
 const SearchScreen = () => {
   const onChangeText = useCallback((text: any) => {
@@ -31,7 +30,7 @@ const SearchScreen = () => {
           <Text style={[styles.recentTexts,{color:colors.primary}]}>Clear</Text>
         </TouchableHighlight>
       </View>
-      <Categories />
+      
     </KeyboardAvoidingView>
   );
 };

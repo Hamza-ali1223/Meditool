@@ -31,7 +31,7 @@ const DoctorCard = ({
             borderTopRightRadius: s(10),
           },
           horizontal ? { height: vs(120) } : { height: vs(220) },
-          horizontal ? null : { borderRadius: s(10),  },
+          horizontal ? null : { borderRadius: s(10) },
         ]}
       />
       <View style={styles.cardDetails}>
@@ -42,9 +42,18 @@ const DoctorCard = ({
           >
             {specialities[speciality - 1].title}
           </Text>
-          {
-            !horizontal? <Text  style={{ fontFamily: 'Lato-Regular', fontSize: 14, color: 'grey' ,marginTop:vs(2)}} >${fees}</Text>:null
-          }
+          {!horizontal ? (
+            <Text
+              style={{
+                fontFamily: 'Lato-Regular',
+                fontSize: 14,
+                color: 'grey',
+                marginTop: vs(2),
+              }}
+            >
+              ${fees}
+            </Text>
+          ) : null}
         </View>
         <View>
           <Text style={{ fontFamily: 'Lato-Regular', fontSize: 11 }}>

@@ -13,7 +13,7 @@ import images from '../../assets/img/images';
 import SearchBar from '../SearchButton/SearchButton';
 
 const height = Dimensions.get('window').height;
-const Header = () => {
+const Header = ({Username}) => {
   return (
     <View style={styles.mainContainer}>
       <View style={styles.Profile}>
@@ -27,7 +27,7 @@ const Header = () => {
             <Text
               style={[styles.bioText1, { paddingTop: vs(5), fontSize: 18 }]}
             >
-              Username
+              {Username}
             </Text>
           </View>
         </View>

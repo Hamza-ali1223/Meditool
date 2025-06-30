@@ -8,13 +8,18 @@ import Login from './Screens/Login';
 import OTPVerify from './Screens/OTPVerify';
 import HomeScreen from './Screens/HomeScreen/HomeScreen';
 import SearchScreen from './Screens/SearchScreen/SearchScreen';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { ExpandedDoctorList } from './components/DoctorList/ExpandedDoctorList';
 
 const App = () => {
   const Stack = createNativeStackNavigator();
+  
+  const queryClient= new QueryClient();
   return (
+    <QueryClientProvider client={queryClient}>
     <NavigationContainer>
       <Stack.Navigator
-        initialRouteName="OnboardingScreen"
+        initialRouteName="HomeScreen"
         screenOptions={{ headerShown: false }}
       >
         <Stack.Screen
@@ -25,9 +30,11 @@ const App = () => {
         <Stack.Screen name="OTP" component={OTPVerify}></Stack.Screen>
         <Stack.Screen name="HomeScreen" component={HomeScreen}></Stack.Screen>
         <Stack.Screen name="SearchScreen" component={SearchScreen} ></Stack.Screen>
+        <Stack.Screen name="ExpandedDoctors" component={ExpandedDoctorList} ></Stack.Screen>
         {/* <Stack.Screen name="Main" component={bottomtabnavigator}></Stack.Screen> */}
       </Stack.Navigator>
     </NavigationContainer>
+    </QueryClientProvider>
   );
 };
 

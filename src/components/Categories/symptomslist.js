@@ -1,7 +1,7 @@
 export const categories = [
   {
     id: 1,
-    name: "🤧 Sneezing",
+    name: "🔥 All",
     description: "A sudden, involuntary expulsion of air from the nose and mouth"
   },
   {

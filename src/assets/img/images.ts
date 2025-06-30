@@ -24,7 +24,8 @@ const images = {
   star: require('./star.png'),
   trend: require('./trend.png'),
   users: require('./users.png'),
-  search2: require("./search2.png")
+  search2: require("./search2.png"),
+  back_white:require("./back-white.png")
 };
 
 export default images;

@@ -9,24 +9,23 @@ import React, { FC, useCallback, useState } from 'react';
 import categories from './symptomslist';
 import { s, vs } from 'react-native-size-matters';
 
-interface props
-{
-    onChangeCategory?: () => void
+interface props {
+  onChangeCategory?: () => void;
 }
-const Categories:FC<props> = ({onChangeCategory}) => {
+const Categories: FC<props> = ({ onChangeCategory }) => {
   const [selected, Setselected] = useState(1);
-  const onPress=useCallback((index)=>{
-    Setselected(index)
-    onChangeCategory && onChangeCategory(index)
-  })
-  const renderCategory = (id, name,) => {
+  const onPress = useCallback(index => {
+    Setselected(index);
+    onChangeCategory && onChangeCategory(index);
+  });
+  const renderCategory = (id, name) => {
     return (
       <TouchableOpacity
         style={[
           styles.containerstyle,
           id === selected && { backgroundColor: '#E6F0FF' },
         ]}
-        onPress={()=>onPress(id)}
+        onPress={() => onPress(id)}
       >
         <Text>{name}</Text>
       </TouchableOpacity>
@@ -38,9 +37,7 @@ const Categories:FC<props> = ({onChangeCategory}) => {
       <FlatList
         data={categories}
         horizontal={true}
-        renderItem={({ item, index }) =>
-          renderCategory(item.id, item.name)
-        }
+        renderItem={({ item, index }) => renderCategory(item.id, item.name)}
         showsHorizontalScrollIndicator={false}
       />
     </View>

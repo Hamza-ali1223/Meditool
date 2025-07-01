@@ -8,7 +8,7 @@ import {
 } from 'react-native';
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { fetchDoctors } from '../api/doctors';
+import { fetchDoctors } from '../../components/api/doctors';
 import DoctorCard from './DoctorCard';
 import { s, vs } from 'react-native-size-matters';
 import images from '../../assets/img/images';
@@ -60,6 +60,6 @@ const styles = StyleSheet.create({
   },
   imageStyle: {
     marginLeft: s(15),
-    marginTop:vs(5),
+    marginTop: vs(5),
   },
 });

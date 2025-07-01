@@ -3,35 +3,44 @@ import {
   Image,
   StyleSheet,
   Text,
-  TouchableOpacity,
   View,
 } from 'react-native';
 import React from 'react';
-import { s, verticalScale, vs } from 'react-native-size-matters';
-import specialities from '../DoctorsListData/specialities';
+import { s, vs } from 'react-native-size-matters';
+import { Query, QueryClientContext, useQuery } from '@tanstack/react-query';
+import { fetchSpecialities } from '../../components/api/specialitites';
+
 
 const cardWidth = (Dimensions.get('window').width - 16 * 3) / 2;
-const DoctorCard = ({
+
+const DoctorDetailCard = ({
   id,
   name,
   image,
   speciality,
   rating,
   fees,
-  horizontal,
 }) => {
+
+
+
+    const {data,isFetched}= useQuery(
+        {
+            queryKey:['Specialities'],
+            queryFn:fetchSpecialities,
+        }
+    )
+    console.log("Data: ",data)
   return (
-    <TouchableOpacity style={styles.mainContainer}>
+    <View style={styles.mainContainer}>
       <Image
         source={{ uri: image }}
         style={[
           {
-            width: cardWidth,
-            borderTopLeftRadius: s(10),
-            borderTopRightRadius: s(10),
+            width: "100%",
+            borderRadius:s(12),
+            height:vs(220),
           },
-          horizontal ? { height: vs(120) } : { height: vs(220) },
-          horizontal ? null : { borderRadius: s(10) },
         ]}
       />
       <View style={styles.cardDetails}>
@@ -40,20 +49,9 @@ const DoctorCard = ({
           <Text
             style={{ fontFamily: 'Lato-Regular', fontSize: 14, color: 'grey' }}
           >
-            {specialities[speciality - 1].title}
+            {isFetched? data[speciality-1]?.title:"Doctor"}
           </Text>
-          {!horizontal ? (
-            <Text
-              style={{
-                fontFamily: 'Lato-Regular',
-                fontSize: 14,
-                color: 'grey',
-                marginTop: vs(2),
-              }}
-            >
-              ${fees}
-            </Text>
-          ) : null}
+        
         </View>
         <View>
           <Text style={{ fontFamily: 'Lato-Regular', fontSize: 11 }}>
@@ -61,17 +59,19 @@ const DoctorCard = ({
           </Text>
         </View>
       </View>
-    </TouchableOpacity>
+    </View>
   );
 };
 
-export default DoctorCard;
+export default DoctorDetailCard;
 
 const styles = StyleSheet.create({
   mainContainer: {
     borderTopLeftRadius: s(10),
     borderTopRightRadius: s(10),
-    flex: 1,
+    
+    marginTop:vs(1),
+    padding:vs(50),
   },
   nameText: {
     fontSize: 16,

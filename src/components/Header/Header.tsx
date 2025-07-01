@@ -13,7 +13,7 @@ import images from '../../assets/img/images';
 import SearchBar from '../SearchButton/SearchButton';
 
 const height = Dimensions.get('window').height;
-const Header = ({Username}) => {
+const Header = ({ Username }) => {
   return (
     <View style={styles.mainContainer}>
       <View style={styles.Profile}>

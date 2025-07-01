@@ -12,3 +12,10 @@ export const fetchDoctors= async () =>
     // return data;
     return doctors;
 }
+
+export const fetchDoctorsById= async(id) =>
+{
+
+    //Logic to put api data here
+    return doctors?.find((item)=>item.id===id)
+}

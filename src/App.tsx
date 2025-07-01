@@ -9,31 +9,55 @@ import OTPVerify from './Screens/OTPVerify';
 import HomeScreen from './Screens/HomeScreen/HomeScreen';
 import SearchScreen from './Screens/SearchScreen/SearchScreen';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { ExpandedDoctorList } from './components/DoctorList/ExpandedDoctorList';
+import { ExpandedDoctorList } from './Screens/DoctorList/ExpandedDoctorList';
+import DoctorDetails from './Screens/DoctorDetails/DoctorDetails';
+import colors from './colors';
+import BookAppointment from './Screens/BookAppointment/BookAppointment';
 
 const App = () => {
   const Stack = createNativeStackNavigator();
-  
-  const queryClient= new QueryClient();
+
+  const queryClient = new QueryClient();
   return (
     <QueryClientProvider client={queryClient}>
-    <NavigationContainer>
-      <Stack.Navigator
-        initialRouteName="HomeScreen"
-        screenOptions={{ headerShown: false }}
-      >
-        <Stack.Screen
-          name="OnboardingScreen"
-          component={Onboarding}
-        ></Stack.Screen>
-        <Stack.Screen name="Login" component={Login}></Stack.Screen>
-        <Stack.Screen name="OTP" component={OTPVerify}></Stack.Screen>
-        <Stack.Screen name="HomeScreen" component={HomeScreen}></Stack.Screen>
-        <Stack.Screen name="SearchScreen" component={SearchScreen} ></Stack.Screen>
-        <Stack.Screen name="ExpandedDoctors" component={ExpandedDoctorList} ></Stack.Screen>
-        {/* <Stack.Screen name="Main" component={bottomtabnavigator}></Stack.Screen> */}
-      </Stack.Navigator>
-    </NavigationContainer>
+      <NavigationContainer>
+        <Stack.Navigator
+          initialRouteName="HomeScreen"
+          screenOptions={{ headerShown: false }}
+        >
+          <Stack.Screen
+            name="OnboardingScreen"
+            component={Onboarding}
+          ></Stack.Screen>
+          <Stack.Screen name="Login" component={Login}></Stack.Screen>
+          <Stack.Screen name="OTP" component={OTPVerify}></Stack.Screen>
+          <Stack.Screen name="HomeScreen" component={HomeScreen}></Stack.Screen>
+          <Stack.Screen
+            name="SearchScreen"
+            component={SearchScreen}
+          ></Stack.Screen>
+          <Stack.Screen
+            name="ExpandedDoctors"
+            component={ExpandedDoctorList}
+          ></Stack.Screen>
+          <Stack.Screen
+            name="DoctorDetails"
+            component={DoctorDetails}
+            options={{
+              headerShown: true,
+              headerTintColor: "white",
+              headerTitle:"Doctor Detail",
+              headerTitleAlign:'center',
+              headerBackVisible:true,
+              headerBackTitle:"Back",
+              headerBackTitleStyle: { fontFamily: 'Lato-Regular' },
+              headerStyle:{backgroundColor:colors.primary}
+            }}
+          ></Stack.Screen>
+          <Stack.Screen name='BookAppoinment' component={BookAppointment}></Stack.Screen>
+          {/* <Stack.Screen name="Main" component={bottomtabnavigator}></Stack.Screen> */}
+        </Stack.Navigator>
+      </NavigationContainer>
     </QueryClientProvider>
   );
 };

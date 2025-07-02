@@ -13,6 +13,7 @@ import { ExpandedDoctorList } from './Screens/DoctorList/ExpandedDoctorList';
 import DoctorDetails from './Screens/DoctorDetails/DoctorDetails';
 import colors from './colors';
 import BookAppointment from './Screens/BookAppointment/BookAppointment';
+import Appointment from './Screens/BookAppointment/Appointment';
 
 const App = () => {
   const Stack = createNativeStackNavigator();
@@ -22,7 +23,7 @@ const App = () => {
     <QueryClientProvider client={queryClient}>
       <NavigationContainer>
         <Stack.Navigator
-          initialRouteName="HomeScreen"
+          initialRouteName="Appointment"
           screenOptions={{ headerShown: false }}
         >
           <Stack.Screen
@@ -55,6 +56,7 @@ const App = () => {
             }}
           ></Stack.Screen>
           <Stack.Screen name='BookAppoinment' component={BookAppointment}></Stack.Screen>
+          <Stack.Screen name="Appointment" component={Appointment}></Stack.Screen>
           {/* <Stack.Screen name="Main" component={bottomtabnavigator}></Stack.Screen> */}
         </Stack.Navigator>
       </NavigationContainer>

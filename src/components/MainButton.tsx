@@ -46,7 +46,7 @@ export default MainButton;
 const styles = StyleSheet.create({
   buttonContainer: {
 
-    backgroundColor: colors.button,
+    backgroundColor: colors.primary,
      justifyContent:"center",
      alignItems:"center",
      paddingVertical:vs(10),

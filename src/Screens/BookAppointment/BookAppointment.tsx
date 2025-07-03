@@ -39,15 +39,10 @@ const BookAppointment = ({ route }) => {
   const handlePress = useCallback(() => {
     if (name && phoneNumber && age &&phoneNumber.length==11) {
       const details = {
-        patient: {
-          name,
-          phoneNumber,
-          age,
-        },
-        slot: {
-          time: '', 
-          date: '', 
-        },
+       name,
+       phoneNumber,
+       age,
+        
       };
       setAppointmentDetails(details);
       setIsPatientDetail(true);
@@ -57,7 +52,7 @@ const BookAppointment = ({ route }) => {
       setPhoneNumber('');
       setAge('');
       setError('');
-      Navigation.navigate("Appointment")
+      Navigation.navigate("Appointment",{AppointDetails:appointmentDetails})
     } else {
         if(phoneNumber.length!=11)
         {
@@ -70,6 +65,12 @@ const BookAppointment = ({ route }) => {
         }
   }, [name, phoneNumber, age]);
 
+  // --- FIX: Move Alert to useEffect ---
+  useEffect(() => {
+    if (error && error !== '') {
+      Alert.alert('Error', error);
+    }
+  }, [error]);
   // Auto-clear error after a short delay
   useEffect(() => {
     if (error !== '') {
@@ -124,8 +125,8 @@ const BookAppointment = ({ route }) => {
         </View>
       </KeyboardAwareScrollView>
       <View style={{ marginBottom: vs(5) }}>
-        {/* Show error as an Alert */}
-        {error && error !== '' && Alert.alert(error)}
+        
+        
         <MainButton Label={'Next'} onPress={handlePress} />
       </View>
     </SafeAreaView>

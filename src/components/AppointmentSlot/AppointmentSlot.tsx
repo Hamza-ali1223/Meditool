@@ -1,31 +1,66 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet } from 'react-native';
 import React, { useState } from 'react';
 import dayjs from 'dayjs';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Calendar } from 'react-native-calendars';
+import colors from '../../colors';
 
-const AppointmentSlot = () => {
+export const AppointmentCalender = () => {
   const today = dayjs().format('YYYY-MM-DD');
   const maxDate = dayjs().add(14, 'day').format('YYYY-MM-DD');
-  const timeSlots = Array.from({ length: 8 }, (_, i) => ({
-    time: `${10 + i}:00 ${10 + i >= 12 ? 'PM' : 'Am'}`,
-    value: `${10 + i}:00`,
-  }));
-  const reminderSlot = ['10', '15', '30'];
+
   const [selectedDate, setselectedDate] = useState(today);
-  const [selectedSlot, setSelectedSlot] = useState(null);
-  console.log(today, maxDate,selectedDate);
 
   return (
     <SafeAreaView style={styles.mainContainer}>
-      <Calendar minDate={today} maxDate={maxDate} 
-      onDayPress={day=>setselectedDate(day?.dateString)}
+      <Calendar
+        minDate={today}
+        maxDate={maxDate}
+        onDayPress={day => setselectedDate(day.dateString)}
+        firstDay={1}
+        markedDates={{
+          [selectedDate]: {
+            selected: true,
+            disableTouchEvent: true,
+            selectedColor: colors.primary,
+          },
+        }}
+        theme={{
+          calendarBackground: 'white',
+          textDisabledColor: '#d9e1e8',
+          monthTextColor: 'white',
+          arrowColor: 'white',
+
+          'stylesheet.calendar.header': {
+            header: {
+              backgroundColor: colors.primary,
+              flexDirection: 'row',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              borderRadius: 10,
+              paddingVertical: 10,
+              paddingHorizontal: 10,
+            },
+            monthText: {
+              fontSize: 20, // Example
+
+              color: 'white',
+              fontFamily: 'Lato-Regular',
+            },
+            arrow: {
+              padding: 10,
+            },
+          },
+          textMonthFontWeight: 'bold',
+          textDayHeaderFontWeight: 'bold',
+          textDayFontWeight: 'normal',
+          textMonthFontSize: 18,
+          textDayHeaderFontSize: 12,
+        }}
       />
     </SafeAreaView>
   );
 };
-
-export default AppointmentSlot;
 
 const styles = StyleSheet.create({
   mainContainer: {

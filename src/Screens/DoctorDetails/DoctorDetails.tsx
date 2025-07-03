@@ -34,7 +34,7 @@ const DoctorDetails = ({ route }) => {
 
   const handlePress= () =>
   {
-    navigate("BookAppoinment",{id:doctor?.id})
+    navigate("BookAppointment",{id:doctor?.id})
   }
   return (
     <SafeAreaView style={styles.mainContainer}>

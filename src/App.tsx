@@ -23,7 +23,7 @@ const App = () => {
     <QueryClientProvider client={queryClient}>
       <NavigationContainer>
         <Stack.Navigator
-          initialRouteName="Appointment"
+          initialRouteName='HomeScreen'
           screenOptions={{ headerShown: false }}
         >
           <Stack.Screen
@@ -55,7 +55,7 @@ const App = () => {
               headerStyle:{backgroundColor:colors.primary}
             }}
           ></Stack.Screen>
-          <Stack.Screen name='BookAppoinment' component={BookAppointment}></Stack.Screen>
+          <Stack.Screen name='BookAppointment' component={BookAppointment}></Stack.Screen>
           <Stack.Screen name="Appointment" component={Appointment}></Stack.Screen>
           {/* <Stack.Screen name="Main" component={bottomtabnavigator}></Stack.Screen> */}
         </Stack.Navigator>

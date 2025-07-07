@@ -27,7 +27,7 @@ const Onboarding = () => {
         </View>
         <View style={styles.onboardingView}>
           <View style={styles.onboardingSubView}>
-            <Text style={styles.titleText}>Welcome to Meditool</Text>
+            <Text style={styles.titleText}>Welcome to Docspot</Text>
             <Text
               style={{
                 fontSize: 18,

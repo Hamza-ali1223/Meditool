@@ -9,14 +9,15 @@ import React, { useCallback, useState } from 'react';
 import { s, vs } from 'react-native-size-matters';
 import colors from '../../colors';
 
-const AppointmentSlotList = ({ timeSlot }) => {
-  const [selected, Setselected] = useState(timeSlot[0].value);
+const AppointmentSlotList = ({ timeSlot,onSlotSelect }) => {
+  const [selected, Setselected] = useState();
 
   console.log('from FlatList: ', timeSlot);
 
   const handlePress = useCallback((value)=>
 {
     Setselected(value)
+    onSlotSelect && onSlotSelect(value)
     
 },[timeSlot])
   

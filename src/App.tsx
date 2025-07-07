@@ -3,7 +3,7 @@ import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import Onboarding from './Screens/Onboarding';
-import bottomtabnavigator from './bottomtabnavigator';
+import bottomtabnavigator from './Screens/BottomTabNavigator.tsx/bottomtabnavigator';
 import Login from './Screens/Login';
 import OTPVerify from './Screens/OTPVerify';
 import HomeScreen from './Screens/HomeScreen/HomeScreen';
@@ -14,6 +14,9 @@ import DoctorDetails from './Screens/DoctorDetails/DoctorDetails';
 import colors from './colors';
 import BookAppointment from './Screens/BookAppointment/BookAppointment';
 import Appointment from './Screens/BookAppointment/Appointment';
+import { Provider } from 'react-redux';
+import store from './store/store';
+import Bottomtabnavigator from './Screens/BottomTabNavigator.tsx/bottomtabnavigator';
 
 const App = () => {
   const Stack = createNativeStackNavigator();
@@ -21,9 +24,10 @@ const App = () => {
   const queryClient = new QueryClient();
   return (
     <QueryClientProvider client={queryClient}>
+      <Provider store={store} >
       <NavigationContainer>
         <Stack.Navigator
-          initialRouteName='HomeScreen'
+          initialRouteName='OnboardingScreen'
           screenOptions={{ headerShown: false }}
         >
           <Stack.Screen
@@ -32,7 +36,8 @@ const App = () => {
           ></Stack.Screen>
           <Stack.Screen name="Login" component={Login}></Stack.Screen>
           <Stack.Screen name="OTP" component={OTPVerify}></Stack.Screen>
-          <Stack.Screen name="HomeScreen" component={HomeScreen}></Stack.Screen>
+         <Stack.Screen name="Main" component={Bottomtabnavigator}></Stack.Screen> 
+        
           <Stack.Screen
             name="SearchScreen"
             component={SearchScreen}
@@ -57,9 +62,9 @@ const App = () => {
           ></Stack.Screen>
           <Stack.Screen name='BookAppointment' component={BookAppointment}></Stack.Screen>
           <Stack.Screen name="Appointment" component={Appointment}></Stack.Screen>
-          {/* <Stack.Screen name="Main" component={bottomtabnavigator}></Stack.Screen> */}
         </Stack.Navigator>
       </NavigationContainer>
+      </Provider>
     </QueryClientProvider>
   );
 };

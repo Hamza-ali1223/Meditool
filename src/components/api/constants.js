@@ -4,3 +4,9 @@ export const API_PATH ={
     SPECIALITY:'/api/specialities',
     APPOINTMENT:'/api/appoinments',
 }
+
+export const getHeaders=() => {
+    return {
+        'Authorization':`Bearer ${getToken()}`
+    }
+}

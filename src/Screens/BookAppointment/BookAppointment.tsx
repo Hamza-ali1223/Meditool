@@ -52,7 +52,7 @@ const BookAppointment = ({ route }) => {
       setPhoneNumber('');
       setAge('');
       setError('');
-      Navigation.navigate("Appointment",{AppointDetails:appointmentDetails})
+      Navigation.navigate("Appointment",{AppointDetails:details,id:doctorId})
     } else {
         if(phoneNumber.length!=11)
         {

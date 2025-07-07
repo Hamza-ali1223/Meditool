@@ -30,7 +30,7 @@ const OTPVerify = ({ route }) => {
   const onOTPFilled = useCallback(text => {
     `Received ${text}`;
 
-    Navigation.navigate('HomeScreen');
+    Navigation.navigate('Main');
   }, []);
   return (
     <SafeAreaView style={styles.mainContainer}>

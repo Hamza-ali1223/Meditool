@@ -5,18 +5,24 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Calendar } from 'react-native-calendars';
 import colors from '../../colors';
 
-export const AppointmentCalender = () => {
+export const AppointmentCalender = ({getDate}) => {
   const today = dayjs().format('YYYY-MM-DD');
   const maxDate = dayjs().add(14, 'day').format('YYYY-MM-DD');
 
-  const [selectedDate, setselectedDate] = useState(today);
+  const [selectedDate, setselectedDate] = useState();
 
+  const setDate=(date) =>
+  {
+    console.log("From setDate Method")
+    setselectedDate(date)
+    getDate(date)
+  }
   return (
     <SafeAreaView style={styles.mainContainer}>
       <Calendar
         minDate={today}
         maxDate={maxDate}
-        onDayPress={day => setselectedDate(day.dateString)}
+        onDayPress={day => setDate(day.dateString)}
         firstDay={1}
         markedDates={{
           [selectedDate]: {

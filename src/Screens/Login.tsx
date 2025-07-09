@@ -17,6 +17,7 @@ import colors from '../colors';
 import MainButton from '../components/MainButton';
 import { useNavigation } from '@react-navigation/native';
 import images from '../assets/img/images';
+import GoogleSignInButton from '../components/GoogleSignInButton/GoogleSignInButton';
 
 const Login = () => {
   const Navigation = useNavigation();
@@ -94,35 +95,7 @@ const Login = () => {
               <View style={{ marginTop: vs(40), width: '100%' }}>
                 <MainButton Label={'Login with Mobile'} onPress={handlePress} />
               </View>
-              <TouchableOpacity>
-                <View
-                  style={{
-                    flexDirection: 'row',
-                    marginTop: vs(40),
-                    width: s(300),
-                    paddingHorizontal: s(30),
-                    alignItems: 'center',
-                    backgroundColor: 'grey',
-                    justifyContent: 'center',
-                    paddingVertical: vs(10),
-                    borderRadius: s(12),
-                  }}
-                >
-                  <Image
-                    source={require('../assets/img/google_icon.png')}
-                  ></Image>
-                  <Text
-                    style={{
-                      fontSize: 18,
-                      color: 'white',
-                      fontFamily: 'Lato-Regular',
-                    }}
-                  >
-                    {' '}
-                    Continue with Google
-                  </Text>
-                </View>
-              </TouchableOpacity>
+            <GoogleSignInButton/>
             </View>
           </View>
         </ScrollView>

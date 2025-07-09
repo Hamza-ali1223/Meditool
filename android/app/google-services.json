@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "35237781064",
+    "project_id": "docspot-16b23",
+    "storage_bucket": "docspot-16b23.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:35237781064:android:b8628d7886dc135c92c27d",
+        "android_client_info": {
+          "package_name": "com.meditool"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "35237781064-fepvae8hv5rkvi8im3iseq32shnukcus.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.meditool",
+            "certificate_hash": "5e8f16062ea3cd2c4a0d547876baa6f38cabf625"
+          }
+        },
+        {
+          "client_id": "35237781064-2b6esoobopqf7g9pib5afu2s1sl72754.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCxxmCU0Rl6-I_bBo69qJ8e0NH3Oiw-2RQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "35237781064-2b6esoobopqf7g9pib5afu2s1sl72754.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

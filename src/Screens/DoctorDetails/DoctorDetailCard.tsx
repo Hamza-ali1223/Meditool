@@ -14,12 +14,12 @@ import { fetchSpecialities } from '../../components/api/specialitites';
 const cardWidth = (Dimensions.get('window').width - 16 * 3) / 2;
 
 const DoctorDetailCard = ({
-  id,
-  name,
+  doctorId,
+  doctorName,
   image,
   speciality,
   rating,
-  fees,
+  consulationFee,
 }) => {
 
 
@@ -45,7 +45,7 @@ const DoctorDetailCard = ({
       />
       <View style={styles.cardDetails}>
         <View>
-          <Text style={styles.nameText}>{name}</Text>
+          <Text style={styles.nameText}>{doctorName}</Text>
           <Text
             style={{ fontFamily: 'Lato-Regular', fontSize: 14, color: 'grey' }}
           >
@@ -55,7 +55,7 @@ const DoctorDetailCard = ({
         </View>
         <View>
           <Text style={{ fontFamily: 'Lato-Regular', fontSize: 11 }}>
-            {rating}
+            ⭐ {rating}
           </Text>
         </View>
       </View>

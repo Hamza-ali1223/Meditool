@@ -162,7 +162,7 @@ const Appointment = ({ route }) => {
           <ConfirmationModal
             Visible={isVisible}
             onClose={closeModal}
-            ModelText={`${doctor?.name} on ${selectedDate} at ${finalAppointmentDetails.slot.time}`}
+            ModelText={`${doctor?.doctorName} on ${selectedDate} at ${finalAppointmentDetails.slot.time}`}
           />
         )}
       </View>

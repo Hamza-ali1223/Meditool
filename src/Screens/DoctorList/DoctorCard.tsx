@@ -14,18 +14,18 @@ import { useNavigation } from '@react-navigation/native';
 const cardWidth = (Dimensions.get('window').width - 16 * 3) / 2;
 
 const DoctorCard = ({
-  id,
-  name,
+  doctorId,
+  doctorName,
   image,
   speciality,
   rating,
-  fees,
+  consulationFee,
   horizontal,
 }) => {
   const Navigation = useNavigation();
   const handlePress = () => {
-    if (id !== null) {
-      Navigation.navigate('DoctorDetails', { doctorId: id });
+    if (doctorId !== null) {
+      Navigation.navigate('DoctorDetails', { doctorId: doctorId});
     } else {
       console.error('Issue in navigation to DoctorDetails');
     }
@@ -46,7 +46,7 @@ const DoctorCard = ({
       />
       <View style={styles.cardDetails}>
         <View>
-          <Text style={styles.nameText}>{name}</Text>
+          <Text style={styles.nameText}>{doctorName}</Text>
           <Text
             style={{ fontFamily: 'Lato-Regular', fontSize: 14, color: 'grey' }}
           >
@@ -61,13 +61,13 @@ const DoctorCard = ({
                 marginTop: vs(2),
               }}
             >
-              ${fees}
+              ${consulationFee}
             </Text>
           ) : null}
         </View>
         <View>
           <Text style={{ fontFamily: 'Lato-Regular', fontSize: 11 }}>
-            {rating}
+            ⭐ {rating}
           </Text>
         </View>
       </View>

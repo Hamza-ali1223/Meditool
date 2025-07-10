@@ -35,7 +35,7 @@ export const ExpandedDoctorList = () => {
       <FlatList
         data={data}
         numColumns={2}
-        keyExtractor={item => item.id.toString()}
+        keyExtractor={item => item.id}
         columnWrapperStyle={{
           justifyContent: 'space-between',
           flex: 1,

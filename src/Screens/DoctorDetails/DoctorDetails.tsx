@@ -34,7 +34,7 @@ const DoctorDetails = ({ route }) => {
 
   const handlePress= () =>
   {
-    navigate("BookAppointment",{id:doctor?.id})
+    navigate("BookAppointment",{id:doctor?.doctorId})
   }
   return (
     <SafeAreaView style={styles.mainContainer}>
@@ -69,7 +69,7 @@ const DoctorDetails = ({ route }) => {
           About Me
         </Text>
         <Text style={{ paddingHorizontal: s(20), paddingTop: vs(5) }}>
-          {doctor?.name} is the top most{' '}
+          {doctor?.doctorName} is the top most{' '}
           {(doctor?.speciality &&
             specialities?.[doctor.speciality - 1]?.title) ||
             'specialist'}{' '}

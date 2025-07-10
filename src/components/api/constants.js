@@ -1,4 +1,6 @@
-export const BASE_URL= "https://fe36df787298.ngrok-free.app";
+import keychain from 'react-native-keychain'
+
+export const BASE_URL= "https://09d57549db6d.ngrok-free.app";
 export const API_PATH ={
     DOCTORS:'/api/doctors',
     SPECIALITY:'/api/specialities',
@@ -6,8 +8,9 @@ export const API_PATH ={
     AUTH_LOGIN_GOOGLE:"/api/auth/google",
 }
 
-export const getHeaders=() => {
-    return {
-        'Authorization':`Bearer ${getToken()}`
-    }
+export const getHeaders=async () => {
+    const credentials= await keychain.getGenericPassword()
+    console.log("Get Headers Credential Password",credentials.password);
+    
+    return `Bearer ${credentials.password}`
 }

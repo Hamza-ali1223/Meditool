@@ -12,6 +12,7 @@ import { useNavigation } from '@react-navigation/native';
 
 const AppointmentCard = ({ appointment }) => {
  
+  console.log("Appointment Doctor from Appointment Card: "+appointment?.doctor)
   const { data: doctor } = useQuery({
     queryKey: ['doctorByID', appointment.doctor],
     queryFn: () => fetchDoctorsById(appointment.doctor),
@@ -26,7 +27,7 @@ const AppointmentCard = ({ appointment }) => {
 
   
   const doctorSpeciality = specialities?.find(
-    (spec) => spec.id === doctor?.speciality
+    (spec) => spec.id.toString() === doctor?.speciality
   )?.title || 'Specialist';
 
   
@@ -53,7 +54,7 @@ const AppointmentCard = ({ appointment }) => {
         
         <View style={[{marginLeft:s(10)},styles.infoContainer]}>
           <Text style={styles.doctorName}>
-            {doctor?.name || 'Dr. Name'}
+            {doctor?.doctorName || 'Dr. Name'}
           </Text>
           <Text style={styles.speciality}>
             {doctorSpeciality}

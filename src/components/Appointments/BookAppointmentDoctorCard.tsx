@@ -16,12 +16,12 @@ import colors from '../../colors';
 const cardWidth = (Dimensions.get('window').width - 16 * 3) / 2;
 
 export const BookAppointmentDoctorCard = ({
-  id,
-  name,
+  doctorId,
+  doctorName,
   image,
   speciality,
   rating,
-  fees,
+  consulationFee,
 }) => {
 
 
@@ -47,7 +47,7 @@ export const BookAppointmentDoctorCard = ({
         ]}
       />
       <View style={{marginTop:vs(30),paddingLeft:s(10)}}>
-          <Text style={styles.nameText}>{name}</Text>
+          <Text style={styles.nameText}>{doctorName}</Text>
           <Text
             style={{ fontFamily: 'Lato-Regular', fontSize: 14, color: 'grey' }}
           >
@@ -60,7 +60,7 @@ export const BookAppointmentDoctorCard = ({
         
         <View>
           <Text style={{ fontFamily: 'Lato-Regular', fontSize: 11 }}>
-            {rating}
+           ⭐ {rating}
           </Text>
         </View>
       </View>

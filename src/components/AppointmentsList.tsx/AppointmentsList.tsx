@@ -12,11 +12,11 @@ import { useNavigation } from '@react-navigation/native';
 
 const AppointmentCard = ({ appointment }) => {
  
-  console.log("Appointment Doctor from Appointment Card: "+appointment?.doctor)
+  console.log("Appointment Doctor from Appointment Card: "+appointment?.doctor?.doctorId)
   const { data: doctor } = useQuery({
-    queryKey: ['doctorByID', appointment.doctor],
-    queryFn: () => fetchDoctorsById(appointment.doctor),
-    enabled: !!appointment.doctor, 
+    queryKey: ['doctorByID', appointment.doctor?.doctorId],
+    queryFn: () => fetchDoctorsById(appointment.doctor?.doctorId),
+    enabled: !!appointment.doctor?.doctorId, 
   });
 
   // Get specialities to find doctor's speciality name
@@ -31,16 +31,45 @@ const AppointmentCard = ({ appointment }) => {
   )?.title || 'Specialist';
 
   
-  const formatDate = (dateString) => {
+ const formatDate = (dateString) => {
   if (!dateString) return '';
-  const parts = dateString.trim().split(' ');
-
-  if (parts.length < 2) return '';
-
-  const month = parts[0];
-  const day = parts[1].replace(',', ''); 
-
-  return `${day} ${month}`;
+  
+  console.log('🔍 FORMATTING DATE:', dateString);
+  
+  // ✅ Method 1: Handle "Jul 16, 2025" format
+  const textDateMatch = dateString.match(/^(\w{3})\s+(\d{1,2}),?\s+(\d{4})$/);
+  if (textDateMatch) {
+    const [, month, day] = textDateMatch;
+    return `${parseInt(day)} ${month}`;
+  }
+  
+  // ✅ Method 2: Handle ISO formats "2025-07-16" or "2025-07-16T..."
+  const isoDateMatch = dateString.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (isoDateMatch) {
+    const [, year, month, day] = isoDateMatch;
+    const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+    const options = { day: 'numeric', month: 'short' };
+    return date.toLocaleDateString('en-US', options);
+  }
+  
+  // ✅ Method 3: Handle day names (fallback)
+  if (['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY'].includes(dateString)) {
+    return dateString.toLowerCase();
+  }
+  
+  // ✅ Method 4: Try generic Date parsing
+  try {
+    const date = new Date(dateString);
+    if (!isNaN(date.getTime())) {
+      const options = { day: 'numeric', month: 'short' };
+      return date.toLocaleDateString('en-US', options);
+    }
+  } catch (e) {
+    console.log('🔍 Generic parsing failed:', e);
+  }
+  
+  // ✅ Fallback: return as-is
+  return dateString;
 };
   return (
     <View style={styles.cardContainer}>
@@ -67,7 +96,7 @@ const AppointmentCard = ({ appointment }) => {
           <View style={{flexDirection:'row', alignItems:'center',marginBottom:vs(10)}}>
             <Image source={images.calendar} style={{height:vs(14),width:s(14)}} />
             <Text style={{color:'white', fontFamily:'Lato-Regular',marginLeft:s(5)}}>
-              {formatDate(appointment.slot.date)}
+              {formatDate(appointment.date)}
             </Text>
           </View>
           
@@ -75,7 +104,7 @@ const AppointmentCard = ({ appointment }) => {
           <View style={{flexDirection:'row', alignItems:'center'}}>
             <Image source={images.clock} style={{height:vs(14),width:s(14)}} />
             <Text style={{color:'white',fontFamily:'Lato-Regular',marginLeft:s(5)}}>
-              {appointment.slot.time}
+              {appointment.time}
             </Text>
           </View>
         </View>
@@ -85,6 +114,11 @@ const AppointmentCard = ({ appointment }) => {
 };
 
 const AppointmentsList = ({ Appointments }) => {
+    console.log('🔍 APPOINTMENT OBJECT:', JSON.stringify(Appointments), null, 2);
+  console.log('🔍 DOCTOR FROM APPOINTMENT:', Appointments?.doctor);
+  console.log('🔍 DOCTOR ID:', Appointments?.doctor?.doctorId);
+  console.log('🔍 DATE:', Appointments?.date);
+  console.log('🔍 TIME:', Appointments?.time);
     const Navigation=useNavigation()
   return (
     <View>

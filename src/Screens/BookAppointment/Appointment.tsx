@@ -71,7 +71,24 @@ const Appointment = ({ route }) => {
   const mutation = useMutation({
     mutationFn: createAppointment,
     onSuccess: data => {
-      dispatch(setAppointment(data));
+         console.log('🔍 RAW API RESPONSE:', JSON.stringify(data, null, 2));
+    
+    // ✅ Transform the data to match AppointmentCard expectations
+    const transformedAppointment = {
+      ...data,
+      // Transform doctor from string ID to object with doctorId
+      doctor: {
+        doctorId: data.doctor  // Convert "686f9aa7d47063215e66b08e" to { doctorId: "686f9aa7d47063215e66b08e" }
+      },
+      // Flatten slot properties to top level
+      date: data.slot.date,    // Move from slot.date to date
+      time: data.slot.time,    // Move from slot.time to time
+      // Keep the original slot for any other uses
+      slot: data.slot
+    };
+    
+    console.log('🔍 TRANSFORMED FOR REDUX:', JSON.stringify(transformedAppointment, null, 2));
+    dispatch(setAppointment(transformedAppointment));
       if (!isVisible) {
         console.log('Handle press activated');
         setIsvisible(!isVisible);

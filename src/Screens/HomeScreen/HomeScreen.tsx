@@ -26,7 +26,7 @@ const HomeScreen = () => {
     <SafeAreaView style={styles.mainContainer}>
       <Header Username={userName} />
       <Categories />
-      {appointment.length >0 && <AppointmentsList Appointments={appointment}/>}
+      {appointment.length >0 && <AppointmentsList Appointments={appointment} horizontal={true}/>}
       <SectionHeader
         label={'Best Doctors'}
         onPress={() => Navigation.navigate('ExpandedDoctors')}

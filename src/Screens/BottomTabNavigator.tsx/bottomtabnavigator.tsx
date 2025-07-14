@@ -14,6 +14,7 @@ import { s, vs } from 'react-native-size-matters';
 import AppointmentScreen from '../BookAppointment/AppointmentScreen';
 import Settings from '../Settings/Settings';
 import Profile from '../Profile/Profile';
+import WebRTCTest from '../WebRTCTest';
 
 const Bottomtabnavigator = () => {
   const Tabs = createBottomTabNavigator();
@@ -67,7 +68,7 @@ const Bottomtabnavigator = () => {
       <Tabs.Screen name="HomeScreen" component={HomeScreen} />
      
       <Tabs.Screen name='AppointmentScreen' component={AppointmentScreen}></Tabs.Screen>
-      <Tabs.Screen name="Settings" component={Settings}></Tabs.Screen>
+      <Tabs.Screen name='Settings' component={Settings}></Tabs.Screen>
       <Tabs.Screen  name='Profile' component={Profile}></Tabs.Screen>
     </Tabs.Navigator>
   );

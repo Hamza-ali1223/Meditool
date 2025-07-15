@@ -66,35 +66,8 @@ const Login = () => {
           <View style={styles.onboardingView}>
             <View style={styles.onboardingSubView}>
               <Text style={styles.titleText}>Log in or Sign Up</Text>
-              <View
-                style={{
-                  flexDirection: 'row',
-                  height: vs(50),
-                  borderColor: 'grey',
-                  alignItems: 'center',
-                  width: s(300),
-                  borderWidth: 0.5,
-                  borderRadius: s(12),
-                  marginTop: vs(10),
-                }}
-              >
-                <TextInput
-                  onChangeText={SetmobileNumber}
-                  placeholder="Phone Number"
-                  style={{
-                    flex: 1,
-                    paddingHorizontal: s(10),
-                    color: 'black',
-                    fontSize: 18,
-                    fontFamily: 'Lato-Regular',
-                  }}
-                  keyboardType="phone-pad"
-                />
-              </View>
-              {/* Move the button here, not absolutely positioned */}
-              <View style={{ marginTop: vs(40), width: '100%' }}>
-                <MainButton Label={'Login with Mobile'} onPress={handlePress} />
-              </View>
+              
+              
             <GoogleSignInButton/>
             </View>
           </View>
@@ -111,14 +84,14 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   doctorImage: {
-    height: vs(400),
+    height: vs(500),
     width: s(300),
     alignSelf: 'center',
   },
   onboardingView: {
     backgroundColor: 'white',
     borderTopLeftRadius: 12,
-    flex: 1,
+    flex:1,
     borderTopRightRadius: 12,
     marginHorizontal: s(1),
   },
@@ -130,5 +103,6 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontFamily: 'Lato-Bold',
     paddingVertical: vs(10),
+    color:'black',
   },
 });

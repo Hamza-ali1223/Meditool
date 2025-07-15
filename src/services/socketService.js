@@ -33,7 +33,7 @@ init (userId,serverUrl="https://k704q0wc-9092.inc1.devtunnels.ms/")
             reconnectionAttempts:this.maxReconnectAttempts,
             reconnectionDelay:1000,
             timeout:10000,
-            query: {userId} //Were gonna pass our UserId as query param just in case for server usage
+            
         }
     );
 
@@ -54,8 +54,8 @@ init (userId,serverUrl="https://k704q0wc-9092.inc1.devtunnels.ms/")
             this.isConnected=true;
             this.reconnectAttempts=0;
             
-            //Registering
-            this.register();
+            // ✅ REMOVED auto-registration - we'll do it manually
+            console.log('Socket connected, waiting for manual registration...');
         })
 
 

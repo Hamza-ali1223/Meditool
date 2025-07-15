@@ -62,7 +62,8 @@ const GoogleSignInButton = () => {
             dispatch(setInitialAppointment(appointments));
             await keychain.setGenericPassword('authToken', authResponse?.token);
             console.log('Setup complete. Navigating to Main screen.');
-            Navigation.navigate('Main');
+           // After successful Google login:
+            Navigation.navigate('RoleSelection');  // ← Just navigate, no context needed here
           })
           .catch(err => console.log(err));
 
@@ -84,17 +85,19 @@ const GoogleSignInButton = () => {
           width: s(300),
           paddingHorizontal: s(30),
           alignItems: 'center',
-          backgroundColor: 'grey',
+          backgroundColor: 'white',
           justifyContent: 'center',
           paddingVertical: vs(10),
-          borderRadius: s(12),
+          borderRadius: s(30),
+          borderWidth:1,
         }}
       >
         <Image source={images.googleIcon} />
+        
         <Text
           style={{
             fontSize: 18,
-            color: 'white',
+            color: 'black',
             fontFamily: 'Lato-Regular',
           }}
         >

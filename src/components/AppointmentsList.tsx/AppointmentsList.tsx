@@ -11,7 +11,10 @@
 
 
   const AppointmentCard = ({ appointment , horizontal}) => {
-  
+
+    const Navigation=useNavigation();
+    
+    console.log("Appointment we receiving in our AppointmentCard: "+JSON.stringify(appointment))
     console.log("Appointment Doctor from Appointment Card: "+appointment?.doctor?.doctorId)
     const { data: doctor } = useQuery({
       queryKey: ['doctorByID', appointment.doctor?.doctorId],
@@ -30,7 +33,12 @@
       (spec) => spec.id.toString() === doctor?.speciality
     )?.title || 'Specialist';
 
-    
+    const handlePress= () =>
+    {
+      Navigation.navigate("AppointmentDetails",{Appointment:appointment})
+    }
+
+
   const formatDate = (dateString) => {
     if (!dateString) return '';
     
@@ -72,7 +80,8 @@
     return dateString;
   };
     return (
-      <TouchableOpacity style={[styles.cardContainer, !horizontal && {marginVertical:vs(5), minWidth:s(300),marginLeft:s(15)}]}>
+      <TouchableOpacity style={[styles.cardContainer, !horizontal && {marginVertical:vs(5), minWidth:s(300),marginLeft:s(15)}]} 
+      onPress={()=>handlePress()}>
         <View style={{flexDirection:'row',alignItems:'center'}}>
           
           <Image 

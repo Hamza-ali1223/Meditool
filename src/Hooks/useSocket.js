@@ -23,7 +23,7 @@ export function useSocket(userId, serverUrl) {
     console.log(`useSocket: Initializing socket for ${userId}`);
     
     // Initialize socket connection
-    socketService.init(userId, serverUrl);
+    socketService.init(userId||"temp_user", serverUrl);
     
     // Add connection state listeners
     const handleConnect = () => {
@@ -58,7 +58,7 @@ export function useSocket(userId, serverUrl) {
       socketService.off('disconnect');
       socketService.off('connect_error');
     };
-  }, [userId, serverUrl]);
+  }, [ serverUrl]);
   
   // Function to emit events with proper error handling
   const emitEvent = useCallback((event, data, callback) => {

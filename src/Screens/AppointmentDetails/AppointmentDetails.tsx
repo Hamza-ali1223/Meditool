@@ -81,7 +81,7 @@ const AppointmentDetails = ({ route }) => {
         </Text>
       </View>
       <View style={{ position: 'absolute', bottom: 20 }}>
-        <MainButton Label={`Voice Call   ${Appointment?.time} `} onPress={handlePress} />
+        <MainButton Label={` 📞 Voice Call   ${Appointment?.time} `} onPress={handlePress} />
       </View>
     </SafeAreaView>
   );

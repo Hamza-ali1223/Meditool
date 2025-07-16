@@ -1,702 +1,568 @@
-import React, { useState, useEffect, useRef } from 'react';
 import {
-  View,
+  FlatList,
+  PermissionsAndroid,
+  Platform,
+  SafeAreaView,
+  StyleSheet,
   Text,
   TouchableOpacity,
-  StyleSheet,
-  SafeAreaView,
-  StatusBar,
-  FlatList,
-  Alert,
-  Modal,
-  ActivityIndicator,
+  View,
 } from 'react-native';
-import LinearGradient from 'react-native-linear-gradient';
-import { useSocket } from '../../Hooks/useSocket';
-import WebRTCService from '../../services/WebRTCService';
-import { SERVER_URL } from "@env";
+import React, { useEffect, useRef, useState } from 'react';
+import { SERVER_URL } from '@env';
+import { io } from 'socket.io-client';
+import {
+  mediaDevices,
+  RTCIceCandidate,
+  RTCPeerConnection,
+  RTCSessionDescription,
+} from 'react-native-webrtc';
 import { useAuth } from '../../components/Contexts/AuthContext';
-import socketService from '../../services/socketService';
-
-interface User {
-  userId: string;
-  name: string;
-  role: string;
-  email: string;
-  status: string;
-}
-
-interface IncomingCall {
-  from: string;
-  fromName?: string;
-  fromRole?: string;
-  fromEmail?: string;
-  signal: any;
-}
-
-interface Props {
-  route: {
-    params: {
-      appointmentData: {
-        patientId: string;
-        doctorId: string;
-        patientName: string;
-        doctorName: string;
-        userId: string;
-        userRole: string;
-        userName: string;
-      };
-    };
-  };
-  navigation: {
-    navigate: (screen: string, params?: any) => void;
-    goBack: () => void;
-  };
-}
-
-const AudioCallScreen: React.FC<Props> = ({ route, navigation }) => {
-  const { appointmentData } = route.params;
-  const { userId, userName } = appointmentData;
+import { s, vs } from 'react-native-size-matters';
+import CallScreen from './CallScreen';
+import inCallManager from 'react-native-incall-manager';
+const AudioCallScreen = ({ route }) => {
+  const { appointmentData } = route?.params;
+  const [CallStatus, setCallStatus] = useState();
+  const [CallActive, setCallActive] = useState(false);
+  const [IncomingCall, setIncomingCall] = useState();
+  const [Registered, SetRegisterd] = useState(false);
+  const [filterUser, SetfilterUser] = useState();
   const { role } = useAuth();
+  const peerConnection = useRef(null);
+  const [remoteUserId, setRemoteUserId] = useState();
+  const [LocalStream, setLocalStream] = useState();
+  const remoteStream = useRef(null);
+  const [filteredUsers, SetfilteredUsers] = useState();
+  const [Calling, setCalling] = useState(false);
+  const [callerId, setCallerId] = useState();
+  const [speakerOn, SetSpeakerOn] = useState(true);
+  const [micOn, SetmicOn] = useState(true);
+
+  const socket = useRef(null);
+
   
-  // 🔌 Socket connection - using emit and on functions
-  const { connected, emit, on } = useSocket(userId, SERVER_URL);
+  
 
-  // 📱 State management
-  const [onlineUsers, setOnlineUsers] = useState<User[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [incomingCall, setIncomingCall] = useState<IncomingCall | null>(null);
-  const [isInitialized, setIsInitialized] = useState(false);
-
-  // 🎯 Track initialization
-  const initializationAttempted = useRef(false);
-  const socketRef = useRef<any>(null); // Store socket reference for WebRTC
-
-  console.log('🎮 AudioCallScreen Debug:', {
-    userId,
-    role,
-    userName,
-    connected,
-    onlineUsersCount: onlineUsers.length,
-    hasIncomingCall: !!incomingCall,
-    isInitialized,
-    serverUrl: SERVER_URL,
-  });
-
-  // 🎨 Get role-based styling
-  const getRoleConfig = () => {
-    if (role === 'DOCTOR') {
-      return {
-        colors: ['#667eea', '#764ba2'],
-        headerTitle: '👨‍⚕️ Doctor Call Center',
-        userListTitle: 'Available Users',
-        accent: '#667eea',
-      };
-    } else {
-      return {
-        colors: ['#f093fb', '#f5576c'],
-        headerTitle: '👤 Patient Call Center',
-        userListTitle: 'Available Doctors',
-        accent: '#f093fb',
-      };
-    }
-  };
-
-  const config = getRoleConfig();
-
-  // 🚀 Initialize WebRTC when socket connects
   useEffect(() => {
-    if (connected && emit && on && !initializationAttempted.current) {
-      initializationAttempted.current = true;
-      initializeWebRTC();
-    }
-  }, [connected, emit, on]);
+    socket.current = io(SERVER_URL, {
+      transports: ['websocket'],
+    });
 
-  // 🎧 Initialize WebRTC Service
-  const initializeWebRTC = async () => {
-    try {
-      console.log('🎧 Initializing WebRTC Service...');
-      
-      // Create a socket-like object for WebRTC Service
-      const socketForWebRTC = {
-        emit: emit,
-        on: on,
-        id: 'socket-id', // You might want to get this from your useSocket hook
-      };
-      
-      socketRef.current = socketForWebRTC;
-      
-      // Initialize WebRTC with socket functions and userId
-      WebRTCService.initialize(socketService, userId);
-      
-      // Set up callbacks for WebRTC events
-      WebRTCService.setCallbacks({
-        onIncomingCall: handleIncomingCall,
-        onCallConnected: handleCallConnected,
-        onCallRejected: handleCallRejected,
-        onCallEnded: handleCallEnded,
-        onCallError: handleCallError,
-        onRemoteStream: handleRemoteStream,
-        onConnectionStateChange: handleConnectionStateChange,
-      });
-
-      // Update user info on server using emit function
-      emit('update_user_info', {
-        userId: userId,
-        role: role,
-        name: userName,
-        email: appointmentData.patientId || appointmentData.doctorId,
-      });
-
-      // Get online users
+    socket.current.on('connect', () => {
+      console.log('✅ Connected');
+      registerUser(); // Your custom emit
       fetchOnlineUsers();
-      
-      setIsInitialized(true);
-      console.log('✅ WebRTC Service initialized successfully');
-      
-    } catch (error) {
-      console.error('❌ Error initializing WebRTC:', error);
-      Alert.alert('Initialization Error', 'Failed to setup call service');
-    }
-  };
+    });
 
-  // 👥 Fetch online users from server
-  const fetchOnlineUsers = () => {
-    if (!emit || !connected) {
-      console.log('⚠️ Cannot fetch users - no emit function or not connected');
+    socket.current.on('incoming_call', data => {
+      console.log('Incoming Call: ', data);
+      setIncomingCall(data);
+      setCalling(true);
+      setCallStatus('Incoming Call...');
+    });
+
+    socket.current.on('call_accepted', signal => {
+      console.log('Call Accepted, Signal: ' ,signal);
+      setCallActive(true);
+      setCallStatus('Call Connected');
+
+      //Going to set Remote Description when call is accepted
+      const Description = new RTCSessionDescription(signal?.signal);
+      peerConnection.current
+        .setRemoteDescription(Description)
+        .catch(err =>
+          console.log(
+            'error setting remote description, Description: ',
+            Description,
+          ),
+        );
+    });
+
+    socket.current.on('call_rejected', data => {
+      setCallStatus(`Call Rejected: ${data.reason}`);
+      cleanupCall();
+    });
+
+    socket.current.on('call_ended', data => {
+      setCallStatus(`Call Ended`);
+      setCalling(false)
+      cleanupCall();
+    });
+
+    socket.current.on('ice_candidate', candidate => {
+      //Add received ice candidate
+      if (peerConnection.current) {
+        peerConnection.current
+          .addIceCandidate(new RTCIceCandidate(candidate))
+          .catch(err =>
+            console.log('Error adding received Ice Candidate: ', err),
+          );
+      }
+    });
+
+    socket.current.on('online_users', users => {
+      console.log('🌐 Received online users:', users);
+
+      let filtered = [];
+
+      if (role === 'DOCTOR') {
+        filtered = users; // Show all
+      } else if (role === 'PATIENT') {
+        filtered = users.filter(user => user.role === 'DOCTOR');
+      } else {
+        filtered = []; // Optional: handle unknown role
+      }
+
+      console.log(`👥 Filtered users for role ${role}:`, filtered);
+      SetfilteredUsers(filtered);
+    });
+
+    return () => {
+      if (socket.current) {
+        socket.current.disconnect();
+      }
+      cleanupCall();
+    };
+  }, []);
+
+  const registerUser = () => {
+    if (!socket.current || !socket.current.connected) {
+      console.log('⚠️ Socket not connected, cannot register user');
       return;
     }
-    
-    console.log('👥 Fetching online users...');
-    setLoading(true);
-    
-    // Use emit function to request online users
-    emit('get_online_users', userId);
-    
-    // Use on function to listen for response
-    const cleanupOnlineUsers = on('online_users', (users: User[]) => {
-      console.log('📥 Received online users:', users.length);
-      
-      // Filter users based on role
-      let filteredUsers = users;
-      if (role === 'PATIENT') {
-        // Patients only see doctors
-        filteredUsers = users.filter(user => user.role === 'DOCTOR');
-      }
-      // Doctors see everyone (no filter needed)
-      
-      setOnlineUsers(filteredUsers);
-      setLoading(false);
-    });
-
-    // Store cleanup function for later use
-    return cleanupOnlineUsers;
-  };
-
-  // 📞 WebRTC Event Handlers
-  const handleIncomingCall = (callData: any) => {
-    console.log('📲 Incoming call received:', callData.from);
-    setIncomingCall({
-      from: callData.from,
-      fromName: callData.fromName || callData.from,
-      fromRole: callData.fromRole || 'User',
-      fromEmail: callData.fromEmail || '',
-      signal: callData.signal,
-    });
-  };
-
-  const handleCallConnected = () => {
-    console.log('✅ Call connected successfully');
-    // Navigation to CallScreen will be handled by makeCall/answerCall
-  };
-
-  const handleCallRejected = (reason: string) => {
-    console.log('❌ Call rejected:', reason);
-    Alert.alert('Call Rejected', `The call was rejected: ${reason}`);
-  };
-
-  const handleCallEnded = () => {
-    console.log('👋 Call ended');
-    // CallScreen will handle navigation back
-  };
-
-  const handleCallError = (error: string) => {
-    console.log('❌ Call error:', error);
-    Alert.alert('Call Error', error);
-  };
-
-  const handleRemoteStream = (stream: any) => {
-    console.log('🎵 Remote stream received');
-    // This will be handled by CallScreen
-  };
-
-  const handleConnectionStateChange = (state: string) => {
-    console.log('🔗 Connection state changed:', state);
-    // Optional: Show connection status in UI
-  };
-
-  // 📞 Make outgoing call
-  const makeCall = async (targetUser: User) => {
-    try {
-      console.log('📞 Making call to:', targetUser.name);
-      
-      // Show loading state
-      Alert.alert('Calling...', `Connecting to ${targetUser.name}`);
-      
-      // Use WebRTC Service to make the call
-      const success = await WebRTCService.makeCall(targetUser.userId);
-      
-      if (success) {
-        console.log('✅ Call initiated successfully');
-        
-        // Navigate to CallScreen
-        navigation.navigate('CallScreen', {
-          targetUser: targetUser,
-          isOutgoing: true,
-          myUserId: userId,
-          myRole: role,
-        });
-      } else {
-        throw new Error('Failed to initialize call');
-      }
-      
-    } catch (error) {
-      console.error('❌ Error making call:', error);
-      Alert.alert('Call Failed', 'Unable to start the call. Please try again.');
+    const userId = appointmentData?.user?.userId;
+    const name = appointmentData?.patient?.patientName;
+    const email = appointmentData?.user?.email;
+    let image;
+    switch (role) {
+      case 'DOCTOR':
+        image = appointmentData?.doctor?.image;
+        break;
+      case 'PATIENT':
+        image = appointmentData?.user?.image;
+        break;
     }
+    console.log('###### userID: ' + userId + ' #######');
+
+    // Step 1: Emit register event with userId
+    console.log('📤 Emitting register event with userId:', userId);
+    socket.current.emit('register', userId);
+    SetRegisterd(true);
+    // Step 2: After 100ms, emit update_user_info
+    setTimeout(() => {
+      const userInfo = {
+        userId,
+        role,
+        name,
+        image,
+        email,
+      };
+
+      console.log('📤 Emitting update_user_info with data:', userInfo);
+      socket.current.emit('update_user_info', userInfo);
+    }, 100);
   };
 
-  // ✅ Accept incoming call
-  const acceptCall = async () => {
-    if (!incomingCall) return;
-    
-    try {
-      console.log('✅ Accepting call from:', incomingCall.from);
-      
-      // Use WebRTC Service to answer the call
-      const success = await WebRTCService.answerCall(incomingCall);
-      
-      if (success) {
-        console.log('✅ Call answered successfully');
-        
-        // Navigate to CallScreen
-        navigation.navigate('CallScreen', {
-          targetUser: {
-            userId: incomingCall.from,
-            name: incomingCall.fromName || incomingCall.from,
-            role: incomingCall.fromRole || 'User',
-            email: incomingCall.fromEmail || '',
-          },
-          isOutgoing: false,
-          myUserId: userId,
-          myRole: role,
-          incomingCall: incomingCall,
-        });
-        
-        // Clear incoming call
-        setIncomingCall(null);
-      } else {
-        throw new Error('Failed to answer call');
-      }
-      
-    } catch (error) {
-      console.error('❌ Error accepting call:', error);
-      Alert.alert('Call Failed', 'Unable to answer the call. Please try again.');
-      setIncomingCall(null);
-    }
-  };
+    const answerCall= async () =>
+    {
+      try {
+          setCallStatus("Connecting...")
+          setRemoteUserId(IncomingCall?.from)
+          //Initialize peer and media Conneciton
+          const stream= await initializeMedia();
+          if(!stream)
+            return;
 
-  // ❌ Reject incoming call
-  const rejectCall = () => {
-    if (!incomingCall) return;
-    
-    try {
-      console.log('❌ Rejecting call from:', incomingCall.from);
-      
-      // Use WebRTC Service to reject the call
-      WebRTCService.rejectCall(incomingCall, 'Call declined by user');
-      
-      // Clear incoming call
-      setIncomingCall(null);
-      
-    } catch (error) {
-      console.error('❌ Error rejecting call:', error);
-      setIncomingCall(null);
-    }
-  };
+          peerConnection.current=initializePeerConnection(stream);
 
-  // 🔄 Refresh online users
-  const refreshUsers = () => {
-    fetchOnlineUsers();
-  };
+          const Description= new RTCSessionDescription(IncomingCall?.signal);
+          await peerConnection.current.setRemoteDescription(Description);
 
-  // 👤 Render user item
-  const renderUserItem = ({ item }: { item: User }) => (
-    <TouchableOpacity
-      style={[styles.userItem, { borderLeftColor: config.accent }]}
-      onPress={() => makeCall(item)}
-      activeOpacity={0.7}
-    >
-      <View style={styles.userInfo}>
-        <View style={styles.userHeader}>
-          <Text style={styles.userEmoji}>
-            {item.role === 'DOCTOR' ? '👨‍⚕️' : '👤'}
-          </Text>
-          <View style={styles.userDetails}>
-            <Text style={styles.userName}>{item.name}</Text>
-            <Text style={styles.userRole}>{item.role}</Text>
-          </View>
-        </View>
-        <TouchableOpacity
-          style={[styles.callButton, { backgroundColor: config.accent }]}
-          onPress={() => makeCall(item)}
-        >
-          <Text style={styles.callButtonText}>📞 Call</Text>
-        </TouchableOpacity>
-      </View>
-    </TouchableOpacity>
-  );
+          console.log("Set our remote description");
+          const answer= await peerConnection.current.createAnswer();
 
-  return (
-    <View style={styles.container}>
-      <LinearGradient colors={config.colors} style={styles.background}>
-        <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
-        
-        <SafeAreaView style={styles.safeArea}>
+          await peerConnection.current.setLocalDescription(answer);
+          socket.current.emit('answer_call',{
+            to:IncomingCall?.from,
+            signal:peerConnection.current.localDescription,
+          })
+
+          setCallActive(true)
+          setIncomingCall(null);
+          setCallStatus('Call Connected');
           
-          {/* 📋 Header */}
+    if (Platform.OS === 'ios') {
+      inCallManager.start({ media: 'audio', ringback: false });
+    } else {
+      inCallManager.start({ media: 'audio', ringback: false });
+      inCallManager.setSpeakerphoneOn(true);
+    }
+          
+      } catch (error) {
+          console.error("Issue in our answer call method: "+error);
+          
+      }
+    }
+
+
+  const cleanupCall = () => {
+    if (peerConnection.current) {
+      peerConnection.current.close();
+      peerConnection.current = null;
+    }
+
+    if (LocalStream) {
+      LocalStream.getTracks().forEach(track => track.stop());
+      setLocalStream(null);
+    }
+    setCallActive(false);
+    setIncomingCall(null);
+    setCallStatus("");
+    setCalling(false);
+    inCallManager.stop();
+  };
+  //fetchOnlineUsers Method
+  const fetchOnlineUsers = () => {
+    if (!socket.current?.connected) {
+      console.log('⚠️ Socket not connected, cannot fetch users');
+      return;
+    }
+
+    const userId = appointmentData?.user?.userId;
+    console.log('📤 Fetching online users...');
+    socket.current.emit('get_online_users', userId);
+  };
+
+  //Initalize Media Method
+  const initializeMedia = async () => {
+    try {
+      const hasPermission = await requestPermissions();
+      if (!hasPermission) {
+        setCallStatus('Permission Denied');
+        return null;
+      }
+
+      const stream = await mediaDevices.getUserMedia({
+        audio: true,
+        video: false,
+      });
+
+      // --- DEBUGGING LOGS START ---
+      console.log('DEBUG: initializeMedia - Stream obtained:', stream);
+      console.log('DEBUG: initializeMedia - Type of stream:', typeof stream);
+      if (stream) {
+        console.log('DEBUG: initializeMedia - Stream has getTracks method:', typeof stream.getTracks);
+        const tracks = stream.getTracks();
+        console.log('DEBUG: initializeMedia - Result of stream.getTracks():', tracks);
+        console.log('DEBUG: initializeMedia - Type of stream.getTracks():', typeof tracks);
+        if (Array.isArray(tracks)) {
+          console.log('DEBUG: initializeMedia - stream.getTracks() is an array. Length:', tracks.length);
+        } else if (tracks && typeof tracks.forEach === 'function') {
+          console.log('DEBUG: initializeMedia - stream.getTracks() is an iterable with forEach.');
+        } else {
+          console.log('DEBUG: initializeMedia - stream.getTracks() is NOT an array and does NOT have forEach.');
+        }
+      }
+      // --- DEBUGGING LOGS END ---
+      setLocalStream(stream);
+      return stream;
+    } catch (error) {
+      console.error('Error accessing media Devices: ', error);
+      setCallStatus('Failed to accesss Microphone');
+      return null;
+    }
+  };
+
+  //permission method
+  const requestPermissions = async () => {
+    if (Platform.OS === 'android') {
+      try {
+        const granted = await PermissionsAndroid.requestMultiple([
+          PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
+        ]);
+        return (
+          granted['android.permission.RECORD_AUDIO'] ===
+          PermissionsAndroid.RESULTS.GRANTED
+        );
+      } catch (error) {
+        console.error('Failed to request Permssions: ', error);
+      }
+    } else {
+      return true;
+    }
+  };
+  //OUr InitialziePeerConnection Method
+  const initializePeerConnection = stream => {
+    const configurationServer = {
+  iceServers: [
+    { urls: ['stun:stun.l.google.com:19302'] },
+  ],
+};
+
+
+    const pc =  new RTCPeerConnection(configurationServer);
+     console.log("Peer connection created successfully");
+    // --- DEBUGGING LOGS START ---
+    console.log('DEBUG: initializePeerConnection - Stream received:', stream);
+    console.log('DEBUG: initializePeerConnection - Type of stream:', typeof stream);
+    if (stream) {
+      console.log('DEBUG: initializePeerConnection - Stream has getTracks method:', typeof stream.getTracks);
+      const tracks = stream.getTracks();
+      console.log('DEBUG: initializePeerConnection - Result of stream.getTracks():', tracks);
+      console.log('DEBUG: initializePeerConnection - Type of stream.getTracks():', typeof tracks);
+      if (Array.isArray(tracks)) {
+        console.log('DEBUG: initializePeerConnection - stream.getTracks() is an array. Length:', tracks.length);
+      } else if (tracks && typeof tracks.forEach === 'function') {
+        console.log('DEBUG: initializePeerConnection - stream.getTracks() is an iterable with forEach.');
+      } else {
+        console.log('DEBUG: initializePeerConnection - stream.getTracks() is NOT an array and does NOT have forEach.');
+      }
+    }
+    // --- DEBUGGING LOGS END ---
+   // More robust track handling
+     const tracks = stream.getTracks();
+        if (Array.isArray(tracks)) {
+          tracks.forEach(track => {
+            pc.addTrack(track, stream);
+          });
+        } else {
+          console.warn('⚠️ stream.getTracks() is not an array');
+        }
+
+    
+    
+        console.log("Our remoteUserId: "+remoteUserId);
+        
+    pc.onicecandidate = event => {
+      if (event.candidate) {
+        socket.current.emit('ice_candidate', {
+          to: remoteUserId,
+          candidate: event.candidate,
+        });
+      }
+    };
+
+    pc.onconnectionstatechange = event => {
+      switch (pc.connectionState) {
+        case 'connected':
+          setCallStatus('Connected');
+          break;
+        case 'disconnected':
+        case 'failed':
+          setCallStatus('Call Failed or Disconnected');
+          cleanupCall();
+          break;
+        case 'closed':
+          setCallStatus('Call Closed');
+          cleanupCall();
+          break;
+      }
+    };
+
+   pc.ontrack = event => {
+  console.log('🎧 Got remote track:', event.streams);
+      if (event.streams && event.streams[0]) {
+        remoteStream.current = event.streams[0]; // store it
+        console.log("📡 Remote tracks: ", event.streams[0].getAudioTracks());
+    console.log("🎙️ Remote track enabled: ", event.streams[0].getAudioTracks()?.[0]?.enabled);
+
+        // Optional: update state to notify CallScreen or log
+        setCallStatus('Receiving audio stream...');
+      }
+    };
+
+    return pc;
+  };
+  //make call method
+  const makeCall = async (userId) => {
+    try {
+      setCalling(true);
+      setCallStatus("Calling");
+      setRemoteUserId(userId);
+
+      //Initialize media and peer Connection
+      const stream = await initializeMedia();
+      if (!stream) return;
+
+      peerConnection.current = initializePeerConnection(stream);
+
+      const offer = await peerConnection.current.createOffer({
+        offerToReceiveAudio: true,
+        offerToReceiveVideo: false,
+      });
+
+      await peerConnection.current.setLocalDescription(offer);
+      socket.current.emit('make_call', {
+        to: userId,
+        signal: peerConnection.current.localDescription,
+      });
+      setCallStatus('Calling...');
+      console.log('📤 Emitted make_call to:', userId);
+    } catch (error) {
+      console.error('Unable to make Call: ', error);
+    }
+  };
+  const endCall = () => {
+    setCalling(false);
+    if (remoteUserId) {
+      socket.current.emit('end_call', { to: remoteUserId });
+    }
+    cleanupCall();
+  };
+
+  const rejectCall = () =>
+  {
+      setCalling(false)
+    socket.current.emit('reject_call',{
+      from: appointmentData?.user?.userId,
+   to: IncomingCall?.from, // whoever initiated the call
+    reason: 'user Busy',
+
+    });
+    setIncomingCall(null);
+    setCallStatus('')
+  }
+
+  const toggleMic =() =>
+  {
+    if(LocalStream) 
+    {
+      const audioTrack=LocalStream.getAudioTracks?.()[0];
+      if(audioTrack)
+      {
+        console.log("We got our audioTrack from toggleMic");
+        const newMicState=!micOn;
+        audioTrack.enabled=newMicState;
+        SetmicOn(newMicState);
+        const callstatus=newMicState ? 'Mic Unmuted' : 'Mic Muted'
+        setCallStatus(callstatus);
+        
+      }
+    }
+  }
+
+  const toggleSpeaker= () =>
+  {
+    const newSpeakerState=!speakerOn;
+    inCallManager.setSpeakerphoneOn(newSpeakerState);
+    SetSpeakerOn(newSpeakerState);
+    const callstatus=newSpeakerState? "Speaker On":"Speaker off";
+    setCallStatus(callstatus)
+  }
+  return (
+    <SafeAreaView style={styles.container}>
+      {!Calling && (
+        <View style={{ paddingHorizontal: s(10) }}>
           <View style={styles.header}>
-            <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-              <Text style={styles.backButtonText}>← Back</Text>
-            </TouchableOpacity>
-            <Text style={styles.headerTitle}>{config.headerTitle}</Text>
-            <TouchableOpacity style={styles.refreshButton} onPress={refreshUsers}>
-              <Text style={styles.refreshButtonText}>🔄</Text>
+            <Text style={styles.headerText}>🟢 Available Users to Call</Text>
+            <TouchableOpacity
+              onPress={fetchOnlineUsers}
+              style={styles.refreshButton}
+            >
+              <Text style={styles.refreshButtonText}>🔄 Refresh</Text>
             </TouchableOpacity>
           </View>
-
-          {/* 👤 User Info */}
-          <View style={styles.userSection}>
-            <Text style={styles.welcomeText}>Welcome, {userName}!</Text>
-            <Text style={styles.statusText}>
-              {connected ? '🟢 Connected' : '🔴 Connecting...'}
-              {isInitialized && ' • WebRTC Ready'}
-            </Text>
-            <Text style={styles.debugText}>Server: {SERVER_URL}</Text>
-          </View>
-
-          {/* 👥 Online Users List */}
-          <View style={styles.listContainer}>
-            <View style={styles.listHeader}>
-              <Text style={styles.listTitle}>{config.userListTitle}</Text>
-              <Text style={styles.listCount}>({onlineUsers.length} online)</Text>
-            </View>
-
-            {loading ? (
-              <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color="#ffffff" />
-                <Text style={styles.loadingText}>Loading users...</Text>
-              </View>
-            ) : onlineUsers.length > 0 ? (
-              <FlatList
-                data={onlineUsers}
-                renderItem={renderUserItem}
-                keyExtractor={(item) => item.userId}
-                showsVerticalScrollIndicator={false}
-                contentContainerStyle={styles.listContent}
-              />
-            ) : (
+          <FlatList
+            data={filteredUsers || []}
+            keyExtractor={item => item.userId}
+            contentContainerStyle={styles.listContent}
+            renderItem={({ item }) => (
+              <TouchableOpacity
+                style={styles.userCard}
+                onPress={() => {
+                  SetfilterUser(item);
+                 makeCall(item?.userId);
+                }}
+              >
+                <Text style={styles.userName}>{item.name || item.userId}</Text>
+                <Text style={styles.userRole}>{item.role}</Text>
+              </TouchableOpacity>
+            )}
+            ItemSeparatorComponent={() => <View style={styles.separator} />}
+            ListEmptyComponent={() => (
               <View style={styles.emptyContainer}>
-                <Text style={styles.emptyText}>
-                  {role === 'PATIENT' ? '👨‍⚕️ No doctors online' : '👥 No users online'}
-                </Text>
-                <TouchableOpacity style={styles.retryButton} onPress={refreshUsers}>
-                  <Text style={styles.retryButtonText}>🔄 Refresh</Text>
-                </TouchableOpacity>
+                <Text style={styles.emptyText}>No users online</Text>
               </View>
             )}
-          </View>
-
-        </SafeAreaView>
-
-        {/* 📞 Incoming Call Modal */}
-        <Modal
-          visible={!!incomingCall}
-          transparent={true}
-          animationType="slide"
-          onRequestClose={rejectCall}
-        >
-          <View style={styles.modalOverlay}>
-            <View style={styles.incomingCallModal}>
-              <Text style={styles.modalTitle}>📞 Incoming Call</Text>
-              
-              <View style={styles.callerInfo}>
-                <Text style={styles.callerEmoji}>
-                  {incomingCall?.fromRole === 'DOCTOR' ? '👨‍⚕️' : '👤'}
-                </Text>
-                <Text style={styles.callerName}>
-                  {incomingCall?.fromName || incomingCall?.from}
-                </Text>
-                <Text style={styles.callerRole}>
-                  {incomingCall?.fromRole || 'User'}
-                </Text>
-              </View>
-
-              <View style={styles.callActions}>
-                <TouchableOpacity
-                  style={[styles.actionButton, styles.rejectButton]}
-                  onPress={rejectCall}
-                >
-                  <Text style={styles.actionButtonText}>❌ Reject</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[styles.actionButton, styles.acceptButton]}
-                  onPress={acceptCall}
-                >
-                  <Text style={styles.actionButtonText}>✅ Accept</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        </Modal>
-
-      </LinearGradient>
-    </View>
+          />
+        </View>
+      )}
+      {Calling && (
+        <CallScreen
+          callerId={callerId}
+          userId={appointmentData?.user?.userId}
+          role={role}
+          endCall={endCall}
+          appointmentData={appointmentData}
+          filterUser={filterUser}
+          callActive={CallActive}
+          incomingCall={IncomingCall}
+          rejectCall={rejectCall} answerCall={answerCall} remoteStream={remoteStream.current} CallStatus={CallStatus} toggleMic={toggleMic} toggleSpeaker={toggleSpeaker}      />
+      )}
+    </SafeAreaView>
   );
 };
+
+export default AudioCallScreen;
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#0A1F44', // dark blue background
   },
-  background: {
-    flex: 1,
-  },
-  safeArea: {
-    flex: 1,
-    paddingHorizontal: 20,
-  },
-
-  // Header
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 20,
-    marginBottom: 30,
+    marginBottom: vs(12),
+    marginTop: vs(50),
   },
-  backButton: {
-    padding: 8,
-  },
-  backButtonText: {
-    color: '#ffffff',
-    fontSize: 16,
+  headerText: {
+    color: '#FFF',
+    fontSize: vs(14),
     fontWeight: '600',
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#ffffff',
-    textAlign: 'center',
-    flex: 1,
   },
   refreshButton: {
-    padding: 8,
+    backgroundColor: '#1E3A8A',
+    paddingVertical: vs(6),
+    paddingHorizontal: vs(12),
+    borderRadius: vs(4),
   },
   refreshButtonText: {
-    fontSize: 20,
-  },
-
-  // User Section
-  userSection: {
-    alignItems: 'center',
-    marginBottom: 30,
-  },
-  welcomeText: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#ffffff',
-    marginBottom: 8,
-  },
-  statusText: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.8)',
-    textAlign: 'center',
-    marginBottom: 4,
-  },
-  debugText: {
-    fontSize: 10,
-    color: 'rgba(255, 255, 255, 0.6)',
-    textAlign: 'center',
-  },
-
-  // List Container
-  listContainer: {
-    flex: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 16,
-    padding: 16,
-  },
-  listHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  listTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#ffffff',
-  },
-  listCount: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.7)',
+    color: '#FFF',
+    fontSize: vs(14),
+    fontFamily: 'Lato-Regular',
   },
   listContent: {
-    paddingBottom: 20,
+    paddingBottom: vs(20),
   },
-
-  // User Item
-  userItem: {
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    borderLeftWidth: 4,
-  },
-  userInfo: {
+  userCard: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  userHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  userEmoji: {
-    fontSize: 24,
-    marginRight: 12,
-  },
-  userDetails: {
-    flex: 1,
+    backgroundColor: '#12325E',
+    padding: vs(12),
+    borderRadius: vs(6),
   },
   userName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#ffffff',
-    marginBottom: 2,
+    color: '#E0E7FF',
+    fontSize: vs(16),
+    fontWeight: '500',
   },
   userRole: {
-    fontSize: 12,
-    color: 'rgba(255, 255, 255, 0.7)',
+    color: '#A5B4FC',
+    fontSize: vs(14),
+    fontStyle: 'italic',
   },
-  callButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-  },
-  callButtonText: {
-    color: '#ffffff',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-
-  // Loading & Empty States
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    color: '#ffffff',
-    marginTop: 16,
-    fontSize: 16,
+  separator: {
+    height: vs(8),
   },
   emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
+    marginTop: vs(40),
     alignItems: 'center',
   },
   emptyText: {
-    color: 'rgba(255, 255, 255, 0.8)',
-    fontSize: 16,
-    textAlign: 'center',
-    marginBottom: 20,
-  },
-  retryButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 20,
-  },
-  retryButtonText: {
-    color: '#ffffff',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-
-  // Incoming Call Modal
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  incomingCallModal: {
-    backgroundColor: '#ffffff',
-    borderRadius: 20,
-    padding: 30,
-    alignItems: 'center',
-    minWidth: 300,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#333333',
-    marginBottom: 20,
-  },
-  callerInfo: {
-    alignItems: 'center',
-    marginBottom: 30,
-  },
-  callerEmoji: {
-    fontSize: 48,
-    marginBottom: 12,
-  },
-  callerName: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#333333',
-    marginBottom: 4,
-  },
-  callerRole: {
-    fontSize: 14,
-    color: '#666666',
-  },
-  callActions: {
-    flexDirection: 'row',
-    gap: 20,
-  },
-  actionButton: {
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 25,
-    minWidth: 100,
-  },
-  rejectButton: {
-    backgroundColor: '#FF4757',
-  },
-  acceptButton: {
-    backgroundColor: '#2ED573',
-  },
-  actionButtonText: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '600',
-    textAlign: 'center',
+    color: '#94A3B8',
+    fontSize: vs(16),
   },
 });
-
-export default AudioCallScreen;

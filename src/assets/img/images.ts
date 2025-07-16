@@ -25,7 +25,14 @@ const images = {
   trend: require('./trend.png'),
   users: require('./users.png'),
   search2: require("./search2.png"),
-  back_white:require("./back-white.png")
+  back_white:require("./back-white.png"),
+  call:require("./call.png"),
+  mic_mute:require("./mic_mute.png"),
+  speaker:require('./speaker.png'),
+  end_call:require("./end_call.png"),
+  green_call:require("./green_call.png"),
+  red_call:require('./red_call.png'),
+
 };
 
 export default images;

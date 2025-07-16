@@ -1,463 +1,642 @@
-// src/services/webrtcService.js
-import { mediaDevices, RTCPeerConnection, RTCSessionDescription, RTCIceCandidate } from 'react-native-webrtc';
-import socketService from './socketService';
-import {SERVER_URL,ICE_SERVERS} from '@env'
-console.log('🚀 mediaDevices defined?', mediaDevices != null);
-console.log('🚀 RTCPeerConnection defined?', RTCPeerConnection != null);
-const iceServers=JSON.parse(ICE_SERVERS)
-console.log("Ice Servers: "+iceServers)
-
+import { 
+  RTCPeerConnection, 
+  RTCSessionDescription, 
+  RTCIceCandidate,
+  mediaDevices 
+} from 'react-native-webrtc';
 
 class WebRTCService {
-  // Class properties
-  peerConnection = null;
-  localStream = null;
-  remoteStream = null;
-  isCaller = false;
-  currentCallId = null;
-  currentCallTo = null;
-  listeners = {};
-  isCallInProgress = false;
-  
-  // Call event callbacks
-  onCallStateChange = null;
-  onRemoteStream = null;
-  onError = null;
-  
-  /**
-   * Initialize WebRTC peer connection
-   * @returns {Promise<boolean>} Success status
-   */
-  async initializePeerConnection() {
-    try {
-      // Create new RTCPeerConnection with ICE servers
-      this.peerConnection = new RTCPeerConnection({
-        iceServers: iceServers,
-        iceTransportPolicy: 'all',
-        bundlePolicy: 'max-bundle',
-        rtcpMuxPolicy: 'require',
-        // Use Plan B SDP semantics for compatibility
-        sdpSemantics: 'unified-plan'
-      });
-      
-      // Set up event handlers for peer connection
-      this.setupPeerConnectionListeners();
-      
-      console.log('RTCPeerConnection created');
-      return true;
-    } catch (error) {
-      console.error('Failed to create PeerConnection:', error);
-      this.onError?.('Failed to initialize call');
-      return false;
-    }
-  }
-  
-  /**
-   * Set up event handlers for the peer connection
-   */
-  setupPeerConnectionListeners() {
-    if (!this.peerConnection) return;
+  constructor() {
+    this.peerConnection = null;
+    this.localStream = null;
+    this.remoteStream = null;
+    this.socketService = null;
+    this.myUserId = null;
+    this.remoteUserId = null;
+    this.isInitialized = false;
     
-    // Handle ICE candidate events
-    this.peerConnection.onicecandidate = (event) => {
-      if (event.candidate) {
-        console.log('Generated ICE candidate for', this.currentCallTo);
-        
-        // Send ICE candidate to remote peer via signaling
-        socketService.emit('ice_candidate', {
-          to: this.currentCallTo,
-          candidate: event.candidate
-        });
-      }
-    };
+    // Callbacks for UI updates
+    this.onIncomingCall = null;
+    this.onCallConnected = null;
+    this.onCallRejected = null;
+    this.onCallEnded = null;
+    this.onCallError = null;
+    this.onRemoteStream = null;
+    this.onConnectionStateChange = null;
     
-    // Monitor connection state
-    this.peerConnection.onconnectionstatechange = () => {
-      console.log('Connection state changed:', this.peerConnection.connectionState);
-      this.onCallStateChange?.(this.peerConnection.connectionState);
-      
-      // Handle failed/disconnected states
-      if (this.peerConnection.connectionState === 'failed' ||
-          this.peerConnection.connectionState === 'disconnected') {
-            console.log("oh no shit was true")
-        this.endCall();
-      }
-    };
-    
-    // Monitor ICE connection state
-    this.peerConnection.oniceconnectionstatechange = () => {
-      console.log('ICE connection state:', this.peerConnection.iceConnectionState);
-    };
-    
-    // Handle incoming tracks (audio)
-    this.peerConnection.ontrack = (event) => {
-      console.log('Received remote track');
-      if (event.streams && event.streams[0]) {
-        this.remoteStream = event.streams[0];
-        this.onRemoteStream?.(this.remoteStream);
-      }
-    };
+    console.log('🎧 WebRTCService initialized');
   }
-  
-  /**
-   * Get local audio stream from microphone
-   * @returns {Promise<MediaStream|null>} Local audio stream
-   */
-  async getLocalStream() {
-    try {
-      const stream = await mediaDevices.getUserMedia({
-        audio: true,
-        video: false
-      });
-      
-      console.log('Got local audio stream');
-      this.localStream = stream;
-      return stream;
-    } catch (error) {
-      console.error('Error getting local stream:', error);
-      this.onError?.('Unable to access microphone');
-      return null;
-    }
+
+  // ✅ Initialize with SocketService and userId
+  initialize(socketService, myUserId) {
+    this.socketService = socketService;
+    this.myUserId = myUserId;
+    this.setupSocketListeners();
+    this.isInitialized = true;
+    console.log('🔌 WebRTC initialized with SocketService and userId:', myUserId);
   }
-  
-  /**
-   * Add local stream tracks to peer connection
-   * @returns {boolean} Success status
-   */
-  addLocalStreamTracks() {
-    if (!this.peerConnection || !this.localStream) {
-      console.error('PeerConnection or localStream not initialized');
-      return false;
-    }
-    
-    try {
-      // Add all tracks from local stream to peer connection
-      this.localStream.getTracks().forEach(track => {
-        console.log('Adding track to peer connection:', track.kind);
-        this.peerConnection.addTrack(track, this.localStream);
-      });
-      
-      return true;
-    } catch (error) {
-      console.error('Error adding tracks to peer connection:', error);
-      return false;
-    }
-  }
-  
-  /**
-   * Create and send call offer to remote peer
-   * @param {string} to - User ID to call
-   * @returns {Promise<boolean>} Success status
-   */
-  async makeCall(to) {
-    try {
-      if (this.isCallInProgress) {
-        console.warn('Call already in progress');
-        return false;
-      }
-      
-      this.currentCallTo = to;
-      this.isCaller = true;
-      this.isCallInProgress = true;
-      
-      console.log(`Making call to ${to}`);
-      
-      // Initialize peer connection and get local media
-      await this.initializePeerConnection();
-      const stream = await this.getLocalStream();
-      if (!stream) return false;
-      
-      // Add local stream tracks to peer connection
-      this.addLocalStreamTracks();
-      
-      // Create offer
-      const offer = await this.peerConnection.createOffer({
-        offerToReceiveAudio: true,
-        offerToReceiveVideo: false
-      });
-      
-      // Set local description
-      await this.peerConnection.setLocalDescription(offer);
-      console.log('Created offer and set local description');
-      
-      // Send offer via signaling server
-      socketService.emit('make_call', {
-        to,
-        signal: {
-          type: offer.type,
-          sdp: offer.sdp
-        }
-      });
-      
-      console.log('Call offer sent');
-      return true;
-    } catch (error) {
-      console.error('Error making call:', error);
-      this.onError?.('Failed to make call');
-      this.resetCall();
-      return false;
-    }
-  }
-  
-  /**
-   * Handle incoming call and generate answer
-   * @param {string} from - Caller's user ID
-   * @param {Object} signal - SDP offer data
-   * @returns {Promise<boolean>} Success status
-   */
-  async handleIncomingCall(from, signal) {
-    try {
-      if (this.isCallInProgress) {
-        console.warn('Already in a call, rejecting');
-        this.rejectCall(from, 'busy');
-        return false;
-      }
-      
-      console.log(`Handling incoming call from ${from}`);
-      
-      this.currentCallTo = from;
-      this.isCaller = false;
-      this.isCallInProgress = true;
-      
-      // Initialize peer connection and get local media
-      await this.initializePeerConnection();
-      const stream = await this.getLocalStream();
-      if (!stream) {
-        this.rejectCall(from, 'mediaFailed');
-        return false;
-      }
-      
-      // Add local stream tracks to peer connection
-      this.addLocalStreamTracks();
-      
-      // Apply the remote offer
-      const remoteDesc = new RTCSessionDescription({
-        type: signal.type,
-        sdp: signal.sdp
-      });
-      
-      await this.peerConnection.setRemoteDescription(remoteDesc);
-      console.log('Set remote description from offer');
-      
-      // Create answer
-      const answer = await this.peerConnection.createAnswer();
-      
-      // Set local description
-      await this.peerConnection.setLocalDescription(answer);
-      console.log('Created answer and set local description');
-      
-      // Send answer via signaling server
-      socketService.emit('answer_call', {
-        to: from,
-        signal: {
-          type: answer.type,
-          sdp: answer.sdp
-        }
-      });
-      
-      console.log('Call answer sent');
-      return true;
-    } catch (error) {
-      console.error('Error handling incoming call:', error);
-      this.onError?.('Failed to answer call');
-      this.rejectCall(from, 'error');
-      this.resetCall();
-      return false;
-    }
-  }
-  
-  /**
-   * Handle call answer from remote peer
-   * @param {Object} signal - SDP answer data
-   * @returns {Promise<boolean>} Success status
-   */
-  async handleCallAccepted(signal) {
-    try {
-      if (!this.peerConnection || !this.isCaller) {
-        console.error('No active outgoing call to handle acceptance');
-        return false;
-      }
-      
-      console.log('Call accepted, processing answer');
-      
-      // Apply the remote answer
-      const remoteDesc = new RTCSessionDescription({
-        type: signal.type,
-        sdp: signal.sdp
-      });
-      
-      await this.peerConnection.setRemoteDescription(remoteDesc);
-      console.log('Set remote description from answer');
-      
-      return true;
-    } catch (error) {
-      console.error('Error handling call acceptance:', error);
-      this.onError?.('Error establishing call connection');
-      this.resetCall();
-      return false;
-    }
-  }
-  
-  /**
-   * Handle incoming ICE candidate
-   * @param {Object} candidate - ICE candidate data
-   * @returns {Promise<boolean>} Success status
-   */
-  async handleIceCandidate(candidate) {
-    try {
-      if (!this.peerConnection || !this.isCallInProgress) {
-        console.warn('No active call to handle ICE candidate');
-        return false;
-      }
-      
-      console.log('Adding received ICE candidate');
-      
-      await this.peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
-      console.log('Successfully added ICE candidate');
-      
-      return true;
-    } catch (error) {
-      console.error('Error handling ICE candidate:', error);
-      return false;
-    }
-  }
-  
-  /**
-   * Reject an incoming call
-   * @param {string} from - Caller's user ID
-   * @param {string} reason - Rejection reason
-   */
-  rejectCall(from, reason = 'rejected') {
-    console.log(`Rejecting call from ${from}: ${reason}`);
-    
-    socketService.emit('reject_call', {
-      to: from,
-      reason
-    });
-    
-    this.resetCall();
-  }
-  
-  /**
-   * End active call
-   */
-  endCall() {
-    if (!this.isCallInProgress) {
-      console.warn('No active call to end');
+
+  // ✅ Setup Socket.IO event listeners using SocketService
+  setupSocketListeners() {
+    if (!this.socketService) {
+      console.error('❌ Cannot setup listeners - no socketService');
       return;
     }
-    
-    console.log('Ending call with', this.currentCallTo);
-    
-    // Notify the other peer
-    if (this.currentCallTo) {
-      socketService.emit('end_call', {
-        to: this.currentCallTo
+
+    console.log('📡 Setting up WebRTC socket listeners...');
+
+    // 📞 Incoming call from another user
+    this.socketService.on('incoming_call', (data) => {
+      console.log('📲 Incoming call received from:', data.from);
+      console.log('📋 Call data:', data);
+      
+      this.remoteUserId = data.from;
+      
+      if (this.onIncomingCall) {
+        this.onIncomingCall(data);
+      } else {
+        console.warn('⚠️ No onIncomingCall handler set');
+      }
+    });
+
+    // ✅ Call accepted by remote user
+    this.socketService.on('call_accepted', async (data) => {
+      console.log('✅ Call accepted by:', data.from);
+      console.log('📋 Accept data:', data);
+      
+      try {
+        if (!this.peerConnection) {
+          console.error('❌ No peer connection when handling call accepted');
+          return;
+        }
+
+        if (data.signal && data.signal.sdp) {
+          const answer = new RTCSessionDescription({
+            type: 'answer',
+            sdp: data.signal.sdp
+          });
+          
+          await this.peerConnection.setRemoteDescription(answer);
+          console.log('✅ Remote answer description set successfully');
+          
+          if (this.onCallConnected) {
+            this.onCallConnected();
+          }
+        } else {
+          console.error('❌ Invalid signal data in call accepted');
+        }
+      } catch (error) {
+        console.error('❌ Error handling call accepted:', error);
+        if (this.onCallError) {
+          this.onCallError('Failed to process call answer');
+        }
+      }
+    });
+
+    // ❌ Call rejected
+    this.socketService.on('call_rejected', (data) => {
+      console.log('❌ Call rejected:', data.reason, 'from:', data.from);
+      this.cleanup();
+      
+      if (this.onCallRejected) {
+        this.onCallRejected(data.reason || 'Call was rejected');
+      }
+    });
+
+    // 👋 Call ended by remote user
+    this.socketService.on('call_ended', (data) => {
+      console.log('👋 Call ended by:', data.from);
+      this.cleanup();
+      
+      if (this.onCallEnded) {
+        this.onCallEnded();
+      }
+    });
+
+    // 🧊 ICE candidate from remote peer
+    this.socketService.on('ice_candidate', async (data) => {
+      console.log('🧊 Received ICE candidate from:', data.from);
+      
+      try {
+        if (!this.peerConnection) {
+          console.warn('⚠️ Received ICE candidate but no peer connection');
+          return;
+        }
+
+        if (data.candidate) {
+          const candidate = new RTCIceCandidate(data.candidate);
+          await this.peerConnection.addIceCandidate(candidate);
+          console.log('✅ ICE candidate added successfully');
+        }
+      } catch (error) {
+        console.error('❌ Error adding ICE candidate:', error);
+      }
+    });
+
+    // ❌ Call error
+    this.socketService.on('call_error', (errorMessage) => {
+      console.log('❌ Call error received:', errorMessage);
+      this.cleanup();
+      
+      if (this.onCallError) {
+        this.onCallError(errorMessage);
+      }
+    });
+
+    console.log('✅ All WebRTC socket listeners setup completed');
+  }
+
+  // ✅ Initialize peer connection with modern API
+  async initializePeerConnection() {
+    try {
+      if (this.peerConnection) {
+        console.log('🔄 Cleaning up existing peer connection...');
+        this.peerConnection.close();
+        this.peerConnection = null;
+      }
+
+      const configuration = {
+        iceServers: [
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:stun1.l.google.com:19302' },
+          { urls: 'stun:stun2.l.google.com:19302' },
+        ],
+        iceCandidatePoolSize: 10,
+      };
+
+      this.peerConnection = new RTCPeerConnection(configuration);
+      console.log('✅ Peer connection created with config:', configuration);
+
+      // ✅ Handle ICE candidates
+      this.peerConnection.addEventListener('icecandidate', (event) => {
+        if (event.candidate) {
+          console.log('🧊 Local ICE candidate found:', event.candidate.candidate);
+          
+          if (this.socketService && this.remoteUserId) {
+            this.socketService.emit('ice_candidate', {
+              to: this.remoteUserId,
+              candidate: event.candidate
+            });
+            console.log('📤 ICE candidate sent to:', this.remoteUserId);
+          }
+        } else {
+          console.log('🧊 ICE candidate gathering complete');
+        }
       });
-    }
-    
-    this.resetCall();
-  }
-  
-  /**
-   * Handle call ended by remote peer
-   */
-  handleCallEnded() {
-    console.log('Call ended by remote peer');
-    this.onCallStateChange?.('ended');
-    this.resetCall();
-  }
-  
-  /**
-   * Clean up WebRTC resources
-   */
-  resetCall() {
-    console.log('Resetting call state');
-    this.cleanupMedia();
-    // Stop all local tracks
-    if (this.localStream) {
-      this.localStream.getTracks().forEach(track => {
-        track.stop();
+
+      // ✅ Handle remote stream (modern track-based approach)
+      this.peerConnection.addEventListener('track', (event) => {
+        console.log('🎵 Remote track received:', event.track.kind);
+        console.log('🎵 Stream count:', event.streams.length);
+        
+        if (event.streams && event.streams.length > 0) {
+          this.remoteStream = event.streams[0];
+          console.log('✅ Remote stream set with tracks:', this.remoteStream.getTracks().length);
+          
+          if (this.onRemoteStream) {
+            this.onRemoteStream(this.remoteStream);
+          }
+        }
       });
-      this.localStream = null;
+
+      // ✅ Handle connection state changes
+      this.peerConnection.addEventListener('connectionstatechange', () => {
+        const state = this.peerConnection.connectionState;
+        console.log('🔗 Peer connection state changed to:', state);
+        
+        if (this.onConnectionStateChange) {
+          this.onConnectionStateChange(state);
+        }
+
+        // Handle connection failures
+        if (state === 'failed' || state === 'disconnected') {
+          console.log('💥 Connection failed/disconnected, cleaning up...');
+          setTimeout(() => this.cleanup(), 1000);
+        }
+      });
+
+      // ✅ Handle ICE connection state
+      this.peerConnection.addEventListener('iceconnectionstatechange', () => {
+        const iceState = this.peerConnection.iceConnectionState;
+        console.log('🧊 ICE connection state:', iceState);
+        
+        if (iceState === 'failed') {
+          console.log('🧊❌ ICE connection failed');
+          if (this.onCallError) {
+            this.onCallError('Connection failed');
+          }
+        }
+      });
+
+      // ✅ Handle signaling state
+      this.peerConnection.addEventListener('signalingstatechange', () => {
+        console.log('📡 Signaling state:', this.peerConnection.signalingState);
+      });
+
+      console.log('✅ Peer connection event listeners setup completed');
+      return true;
+    } catch (error) {
+      console.error('❌ Error initializing peer connection:', error);
+      return false;
     }
-    
-    // Close and nullify peer connection
-    if (this.peerConnection) {
-      this.peerConnection.close();
-      this.peerConnection = null;
-    }
-    
-    // Reset state variables
-    this.remoteStream = null;
-    this.currentCallTo = null;
-    this.isCaller = false;
-    this.isCallInProgress = false;
-    
-    console.log('Call reset complete');
   }
-  
-  /**
-   * Toggle microphone mute state
-   * @returns {boolean} New mute state (true = muted)
-   */
+
+  // ✅ Get user media (audio only for voice calls)
+  async getUserMedia() {
+    try {
+      console.log('🎤 Requesting user media...');
+      
+      const constraints = {
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          sampleRate: 44100,
+          channelCount: 1,
+        },
+        video: false
+      };
+
+      const stream = await mediaDevices.getUserMedia(constraints);
+      
+      const audioTracks = stream.getAudioTracks();
+      console.log('✅ Got user media:');
+      console.log(`  - Audio tracks: ${audioTracks.length}`);
+      audioTracks.forEach((track, index) => {
+        console.log(`  - Track ${index}: ${track.label} (${track.kind})`);
+      });
+
+      return stream;
+    } catch (error) {
+      console.error('❌ Error getting user media:', error);
+      
+      // Provide specific error messages
+      if (error.name === 'NotAllowedError') {
+        throw new Error('Microphone permission denied');
+      } else if (error.name === 'NotFoundError') {
+        throw new Error('No microphone found');
+      } else {
+        throw new Error('Failed to access microphone');
+      }
+    }
+  }
+
+  // ✅ Add local tracks to peer connection (modern approach)
+  addLocalTracks(stream) {
+    if (!this.peerConnection || !stream) {
+      console.error('❌ Cannot add tracks - missing peer connection or stream');
+      return false;
+    }
+
+    try {
+      console.log('🎵 Adding local tracks to peer connection...');
+      
+      const tracks = stream.getTracks();
+      tracks.forEach((track, index) => {
+        console.log(`📤 Adding track ${index + 1}: ${track.kind} (${track.label})`);
+        this.peerConnection.addTrack(track, stream);
+      });
+      
+      console.log(`✅ Added ${tracks.length} local tracks to peer connection`);
+      return true;
+    } catch (error) {
+      console.error('❌ Error adding local tracks:', error);
+      return false;
+    }
+  }
+
+  // ✅ Make outgoing call
+  async makeCall(targetUserId) {
+    try {
+      console.log('📞 Starting call to:', targetUserId);
+      
+      if (!this.socketService || !this.socketService.isSocketConnected()) {
+        throw new Error('Socket not connected');
+      }
+
+      this.remoteUserId = targetUserId;
+
+      // Initialize peer connection
+      const peerReady = await this.initializePeerConnection();
+      if (!peerReady) {
+        throw new Error('Failed to initialize peer connection');
+      }
+
+      // Get user media
+      console.log('🎤 Getting user media for outgoing call...');
+      this.localStream = await this.getUserMedia();
+      
+      // Add local tracks
+      const tracksAdded = this.addLocalTracks(this.localStream);
+      if (!tracksAdded) {
+        throw new Error('Failed to add local tracks');
+      }
+
+      // Create offer
+      console.log('📝 Creating call offer...');
+      const offerOptions = {
+        offerToReceiveAudio: true,
+        offerToReceiveVideo: false,
+      };
+      
+      const offer = await this.peerConnection.createOffer(offerOptions);
+      await this.peerConnection.setLocalDescription(offer);
+      
+      console.log('✅ Offer created and set as local description');
+      console.log('📋 Offer SDP length:', offer.sdp.length);
+
+      // Send offer via socket
+      const callData = {
+        to: targetUserId,
+        signal: {
+          type: 'offer',
+          sdp: offer.sdp
+        }
+      };
+      
+      const emitSuccess = this.socketService.emit('make_call', callData);
+      if (!emitSuccess) {
+        throw new Error('Failed to send call offer');
+      }
+
+      console.log('📤 Call offer sent successfully to:', targetUserId);
+      return true;
+    } catch (error) {
+      console.error('❌ Error making call:', error);
+      this.cleanup();
+      return false;
+    }
+  }
+
+  // ✅ Answer incoming call
+  async answerCall(incomingCallData) {
+    try {
+      console.log('📱 Answering call from:', incomingCallData.from);
+      
+      if (!this.socketService || !this.socketService.isSocketConnected()) {
+        throw new Error('Socket not connected');
+      }
+
+      this.remoteUserId = incomingCallData.from;
+
+      // Initialize peer connection
+      const peerReady = await this.initializePeerConnection();
+      if (!peerReady) {
+        throw new Error('Failed to initialize peer connection');
+      }
+
+      // Set remote description from incoming offer
+      if (incomingCallData.signal && incomingCallData.signal.sdp) {
+        console.log('📥 Setting remote offer description...');
+        const offer = new RTCSessionDescription({
+          type: 'offer',
+          sdp: incomingCallData.signal.sdp
+        });
+        
+        await this.peerConnection.setRemoteDescription(offer);
+        console.log('✅ Remote offer description set');
+      } else {
+        throw new Error('Invalid incoming call signal data');
+      }
+
+      // Get user media
+      console.log('🎤 Getting user media for incoming call...');
+      this.localStream = await this.getUserMedia();
+      
+      // Add local tracks
+      const tracksAdded = this.addLocalTracks(this.localStream);
+      if (!tracksAdded) {
+        throw new Error('Failed to add local tracks');
+      }
+
+      // Create answer
+      console.log('📝 Creating call answer...');
+      const answerOptions = {
+        offerToReceiveAudio: true,
+        offerToReceiveVideo: false,
+      };
+      
+      const answer = await this.peerConnection.createAnswer(answerOptions);
+      await this.peerConnection.setLocalDescription(answer);
+      
+      console.log('✅ Answer created and set as local description');
+      console.log('📋 Answer SDP length:', answer.sdp.length);
+
+      // Send answer via socket
+      const answerData = {
+        to: incomingCallData.from,
+        signal: {
+          type: 'answer',
+          sdp: answer.sdp
+        }
+      };
+      
+      const emitSuccess = this.socketService.emit('answer_call', answerData);
+      if (!emitSuccess) {
+        throw new Error('Failed to send call answer');
+      }
+
+      console.log('📤 Call answer sent successfully to:', incomingCallData.from);
+      return true;
+    } catch (error) {
+      console.error('❌ Error answering call:', error);
+      this.cleanup();
+      return false;
+    }
+  }
+
+  // ✅ Reject incoming call
+  rejectCall(incomingCallData, reason = 'Call declined by user') {
+    try {
+      console.log('❌ Rejecting call from:', incomingCallData.from, 'Reason:', reason);
+      
+      if (this.socketService && this.socketService.isSocketConnected()) {
+        const rejectData = {
+          to: incomingCallData.from,
+          reason: reason
+        };
+        
+        this.socketService.emit('reject_call', rejectData);
+        console.log('📤 Call rejection sent');
+      }
+
+      this.cleanup();
+      return true;
+    } catch (error) {
+      console.error('❌ Error rejecting call:', error);
+      this.cleanup();
+      return false;
+    }
+  }
+
+  // ✅ End active call
+  endCall() {
+    try {
+      console.log('☎️ Ending call with:', this.remoteUserId);
+      
+      if (this.socketService && this.socketService.isSocketConnected() && this.remoteUserId) {
+        const endData = {
+          to: this.remoteUserId
+        };
+        
+        this.socketService.emit('end_call', endData);
+        console.log('📤 Call end signal sent');
+      }
+
+      this.cleanup();
+      return true;
+    } catch (error) {
+      console.error('❌ Error ending call:', error);
+      this.cleanup();
+      return false;
+    }
+  }
+
+  // ✅ Toggle mute/unmute
   toggleMute() {
+    try {
+      if (!this.localStream) {
+        console.warn('⚠️ Cannot toggle mute - no local stream');
+        return false;
+      }
+
+      const audioTracks = this.localStream.getAudioTracks();
+      if (audioTracks.length === 0) {
+        console.warn('⚠️ Cannot toggle mute - no audio tracks');
+        return false;
+      }
+
+      const audioTrack = audioTracks[0];
+      const currentEnabled = audioTrack.enabled;
+      audioTrack.enabled = !currentEnabled;
+      
+      const isMuted = !audioTrack.enabled;
+      console.log(isMuted ? '🔇 Audio muted' : '🔊 Audio unmuted');
+      
+      return isMuted; // Return muted state
+    } catch (error) {
+      console.error('❌ Error toggling mute:', error);
+      return false;
+    }
+  }
+
+  // ✅ Get current mute state
+  isMuted() {
     if (!this.localStream) return false;
     
-    const audioTrack = this.localStream.getAudioTracks()[0];
-    if (!audioTrack) return false;
+    const audioTracks = this.localStream.getAudioTracks();
+    if (audioTracks.length === 0) return false;
     
-    const newMuteState = !audioTrack.enabled;
-    audioTrack.enabled = !newMuteState;
-    
-    console.log(`Microphone ${newMuteState ? 'muted' : 'unmuted'}`);
-    return newMuteState;
+    return !audioTracks[0].enabled;
   }
-  
-  /**
-   * Check if user is currently in a call
-   * @returns {boolean} Call status
-   */
-  isInCall() {
-    return this.isCallInProgress;
+
+  // ✅ Enhanced cleanup
+  cleanup() {
+    try {
+      console.log('🧹 Cleaning up WebRTC resources...');
+
+      // Stop local stream tracks
+      if (this.localStream) {
+        const tracks = this.localStream.getTracks();
+        tracks.forEach((track, index) => {
+          console.log(`🛑 Stopping local track ${index + 1}: ${track.kind}`);
+          track.stop();
+        });
+        this.localStream = null;
+      }
+
+      // Close peer connection
+      if (this.peerConnection) {
+        this.peerConnection.close();
+        this.peerConnection = null;
+        console.log('🔌 Peer connection closed');
+      }
+
+      // Clear references
+      this.remoteStream = null;
+      this.remoteUserId = null;
+
+      console.log('✅ WebRTC cleanup completed');
+    } catch (error) {
+      console.error('❌ Error during cleanup:', error);
+    }
   }
-  
-  /**
-   * Set call event handlers
-   * @param {Object} handlers - Event handler functions
-   */
-  setEventHandlers(handlers) {
-    const { onCallStateChange, onRemoteStream, onError } = handlers;
-    
-    this.onCallStateChange = onCallStateChange;
+
+  // ✅ Set callback functions for UI updates
+  setCallbacks({
+    onIncomingCall,
+    onCallConnected,
+    onCallRejected,
+    onCallEnded,
+    onCallError,
+    onRemoteStream,
+    onConnectionStateChange
+  }) {
+    this.onIncomingCall = onIncomingCall;
+    this.onCallConnected = onCallConnected;
+    this.onCallRejected = onCallRejected;
+    this.onCallEnded = onCallEnded;
+    this.onCallError = onCallError;
     this.onRemoteStream = onRemoteStream;
-    this.onError = onError;
-  }
-
-  cleanupMedia() {
-  console.log('[WebRTCService] Cleaning up media');
-
-  // Stop all local tracks
-  if (this.localStream) {
-    this.localStream.getTracks().forEach(track => {
-      track.stop();
-    });
-    this.localStream.release?.(); // iOS-specific
-    this.localStream = null;
-  }
-
-  // Remove all tracks from peer connection
-  if (this.peerConnection) {
-    const senders = this.peerConnection.getSenders?.();
-    senders?.forEach(sender => {
-      this.peerConnection.removeTrack?.(sender);
+    this.onConnectionStateChange = onConnectionStateChange;
+    
+    console.log('✅ WebRTC callbacks set:', {
+      hasIncomingCall: !!onIncomingCall,
+      hasCallConnected: !!onCallConnected,
+      hasCallRejected: !!onCallRejected,
+      hasCallEnded: !!onCallEnded,
+      hasCallError: !!onCallError,
+      hasRemoteStream: !!onRemoteStream,
+      hasConnectionStateChange: !!onConnectionStateChange,
     });
   }
 
-  // Remove remote stream reference
-  this.remoteStream = null;
-}
+  // ✅ Get current state information
+  getState() {
+    const connectionState = this.peerConnection?.connectionState || 'closed';
+    const iceConnectionState = this.peerConnection?.iceConnectionState || 'closed';
+    const signalingState = this.peerConnection?.signalingState || 'closed';
+    
+    return {
+      isInitialized: this.isInitialized,
+      connectionState,
+      iceConnectionState,
+      signalingState,
+      hasLocalStream: !!this.localStream,
+      hasRemoteStream: !!this.remoteStream,
+      hasPeerConnection: !!this.peerConnection,
+      remoteUserId: this.remoteUserId,
+      myUserId: this.myUserId,
+      isMuted: this.isMuted(),
+      socketConnected: this.socketService?.isSocketConnected() || false,
+    };
+  }
+
+  // ✅ Check if call is active
+  isCallActive() {
+    const state = this.peerConnection?.connectionState;
+    return state === 'connected' || state === 'connecting';
+  }
+
+  // ✅ Get detailed connection info for debugging
+  getConnectionInfo() {
+    if (!this.peerConnection) {
+      return { error: 'No peer connection' };
+    }
+
+    return {
+      connectionState: this.peerConnection.connectionState,
+      iceConnectionState: this.peerConnection.iceConnectionState,
+      iceGatheringState: this.peerConnection.iceGatheringState,
+      signalingState: this.peerConnection.signalingState,
+      localDescription: this.peerConnection.localDescription?.type,
+      remoteDescription: this.peerConnection.remoteDescription?.type,
+      hasLocalStream: !!this.localStream,
+      hasRemoteStream: !!this.remoteStream,
+      socketConnected: this.socketService?.isSocketConnected(),
+    };
+  }
 }
 
-// Export as singleton
+// Export singleton instance
 export default new WebRTCService();

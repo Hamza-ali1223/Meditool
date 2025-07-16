@@ -19,6 +19,7 @@ import AvailableUsersScreen from './Screens/AudioCall/AvailbleUsersScreen';
 import AudioCallScreen from './Screens/AudioCall/AudioCallScreen';
 import { AuthProvider } from './components/Contexts/AuthContext';
 import RoleSelectionScreen from './Screens/RoleSelection/RoleSelectionScreen';
+import CallScreen from './Screens/AudioCall/CallScreen';
 
 const App = () => {
   const Stack = createNativeStackNavigator();
@@ -77,6 +78,7 @@ const App = () => {
   component={AudioCallScreen}
   options={{ headerShown: false }}
 />
+<Stack.Screen name='CallScreen' component={CallScreen}></Stack.Screen>
         </Stack.Navigator>
       </NavigationContainer>
       </AuthProvider>

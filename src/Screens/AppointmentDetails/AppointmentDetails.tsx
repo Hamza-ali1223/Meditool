@@ -32,15 +32,10 @@ const AppointmentDetails = ({ route }) => {
 
 
  const handlePress = () => {
-//   navigate('AudioCall', {
-//     doctorId: Appointment?.doctor?.doctorId,
-//     userId: Appointment?.user?.userId,
-//     doctorName: `Dr. ${Appointment?.doctor?.doctorName}`,
-//     outgoing: true,
-//   });
+
 
         console.log("Navigating to Audio Call");
-        navigate("AudioCall", { Appointment });
+        navigate("AudioCall", {appointmentData: Appointment });
         
 }
     

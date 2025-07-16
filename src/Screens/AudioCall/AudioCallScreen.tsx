@@ -1,337 +1,361 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
   SafeAreaView,
-  FlatList,
   StatusBar,
+  FlatList,
+  Alert,
+  Modal,
+  ActivityIndicator,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
-import { useAuth } from '../../components/Contexts/AuthContext';
 import { useSocket } from '../../Hooks/useSocket';
-import {SERVER_URL} from "@env"
+import WebRTCService from '../../services/WebRTCService';
+import { SERVER_URL } from "@env";
+import { useAuth } from '../../components/Contexts/AuthContext';
+import socketService from '../../services/socketService';
 
-interface Props {
-  Appointment?: any;
-  navigation?: any;
+interface User {
+  userId: string;
+  name: string;
+  role: string;
+  email: string;
+  status: string;
 }
 
-export default function AudioCallScreen({ route, navigation }: Props) {
-  
-  // 🔐 Get role from context
+interface IncomingCall {
+  from: string;
+  fromName?: string;
+  fromRole?: string;
+  fromEmail?: string;
+  signal: any;
+}
+
+interface Props {
+  route: {
+    params: {
+      appointmentData: {
+        patientId: string;
+        doctorId: string;
+        patientName: string;
+        doctorName: string;
+        userId: string;
+        userRole: string;
+        userName: string;
+      };
+    };
+  };
+  navigation: {
+    navigate: (screen: string, params?: any) => void;
+    goBack: () => void;
+  };
+}
+
+const AudioCallScreen: React.FC<Props> = ({ route, navigation }) => {
+  const { appointmentData } = route.params;
+  const { userId, userName } = appointmentData;
   const { role } = useAuth();
   
-  //Getting our Appointment Data
-  const {Appointment}= route?.params||{};
-  console.log("Appointment from Audio Call 🔉"+Appointment);
-  
-  // 📱 States
-  const [allUsers, setAllUsers] = useState<any[]>([]);
-  const [filteredUsers, setFilteredUsers] = useState<any[]>([]);
-  const [currentStep, setCurrentStep] = useState<'connecting' | 'registering' | 'updating' | 'ready'>('connecting');
-  const [isInCall, setIsInCall] = useState(false);
-  const [incomingCall, setIncomingCall] = useState<any>(null);
-  
-  // 🆔 Get userId from Appointment
-  const userId = Appointment?.user?.userId || '';
-  const userName = `${Appointment?.user?.firstName} ${Appointment?.user?.lastName}` || 'User';
-  const userEmail = Appointment?.user?.email || '';
-  
-  // 🔌 Use the actual user ID for socket connection
+  // 🔌 Socket connection - using emit and on functions
   const { connected, emit, on } = useSocket(userId, SERVER_URL);
-  
-  console.log('🔍 AudioCall Debug:', {
-    role,
+
+  // 📱 State management
+  const [onlineUsers, setOnlineUsers] = useState<User[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [incomingCall, setIncomingCall] = useState<IncomingCall | null>(null);
+  const [isInitialized, setIsInitialized] = useState(false);
+
+  // 🎯 Track initialization
+  const initializationAttempted = useRef(false);
+  const socketRef = useRef<any>(null); // Store socket reference for WebRTC
+
+  console.log('🎮 AudioCallScreen Debug:', {
     userId,
+    role,
     userName,
     connected,
-    currentStep,
-    allUsersCount: allUsers.length,
-    filteredUsersCount: filteredUsers.length,
-    appointmentsData: Appointment ? 'Available' : 'Missing'
+    onlineUsersCount: onlineUsers.length,
+    hasIncomingCall: !!incomingCall,
+    isInitialized,
+    serverUrl: SERVER_URL,
   });
 
-  // ⚠️ Handle missing Appointment data
-  if (!Appointment?.user?.userId) {
-    return (
-      <View style={styles.errorContainer}>
-        <Text style={styles.errorText}>❌ No user data available</Text>
-        <Text style={styles.errorSubtext}>Please ensure you're logged in</Text>
-      </View>
-    );
-  }
-
-  // 👂 Two-Step Registration Process
-  useEffect(() => {
-    if (!connected) return;
-
-    if (currentStep === 'connecting') {
-      console.log('🔗 Step 1: Registering with userId only...');
-      setCurrentStep('registering');
-      
-      // ✅ Step 1: Register with ONLY userId as string
-      emit('register', userId);
-      
-      console.log('✅ Sent register event with userId:', userId);
-      
-      // Move to updating step after 500ms
-      setTimeout(() => {
-        setCurrentStep('updating');
-      }, 500);
-    }
-    
-    if (currentStep === 'updating') {
-      console.log('📋 Step 2: Updating with role and user info...');
-      
-      // ✅ Step 2: Update with role and other info
-      emit('update_user_info', {
-        userId: userId,
-        role: role,
-        name: userName,
-        email: userEmail,
-        timestamp: new Date().toISOString()
-      });
-      
-      console.log('✅ Sent update_user_info event with:', {
-        userId,
-        role,
-        userName,
-        userEmail
-      });
-      
-      // Move to ready and get users after 1 second
-      setTimeout(() => {
-        console.log('✅ Registration complete, moving to ready state');
-        setCurrentStep('ready');
-        refreshOnlineUsers();
-      }, 1000);
-    }
-    
-  }, [connected, currentStep, emit, userId, role, userName, userEmail]);
-
-  // 🔄 Filter users based on role
-  useEffect(() => {
-    if (role === 'DOCTOR') {
-      // Doctors see all users (patients + other doctors)
-      const filtered = allUsers.filter(user => user.userId !== userId);
-      setFilteredUsers(filtered);
-      console.log('👨‍⚕️ Doctor view: Showing all users except self:', filtered.length);
-    } else {
-      // Patients see only doctors
-      const filtered = allUsers.filter(user => 
-        user.userId !== userId && user.role === 'DOCTOR'
-      );
-      setFilteredUsers(filtered);
-      console.log('👤 Patient view: Showing doctors only:', filtered.length);
-    }
-  }, [allUsers, userId, role]);
-
-  // 👂 Socket event listeners
-  useEffect(() => {
-    if (!connected) return;
-
-    // Listen for online users with full role info
-    const cleanupOnlineUsers = on('online_users', (users: any[]) => {
-      console.log('👥 Received online users with roles:', users);
-      
-      // Log first user structure for debugging
-      if (users.length > 0) {
-        console.log('🔍 First user structure:', JSON.stringify(users[0], null, 2));
-      }
-      
-      setAllUsers(users || []);
-    });
-
-    // Listen for incoming calls
-    const cleanupIncomingCall = on('incoming_call', (data: any) => {
-      console.log('📞 Incoming call from:', data.from, 'Data:', data);
-      setIncomingCall(data);
-      setIsInCall(true);
-    });
-
-    // Listen for call accepted
-    const cleanupCallAccepted = on('call_accepted', (data: any) => {
-      console.log('✅ Call accepted by:', data.from);
-      setIsInCall(true);
-    });
-
-    // Listen for call ended
-    const cleanupCallEnded = on('call_ended', (data: any) => {
-      console.log('☎️ Call ended by:', data.from);
-      resetCallState();
-    });
-
-    // Listen for call rejected
-    const cleanupCallRejected = on('call_rejected', (data: any) => {
-      console.log('❌ Call rejected by:', data.from, 'Reason:', data.reason);
-      resetCallState();
-    });
-
-    // Listen for call errors
-    const cleanupCallError = on('call_error', (error: string) => {
-      console.log('⚠️ Call error:', error);
-      resetCallState();
-    });
-
-    return () => {
-      cleanupOnlineUsers();
-      cleanupIncomingCall();
-      cleanupCallAccepted();
-      cleanupCallEnded();
-      cleanupCallRejected();
-      cleanupCallError();
-    };
-  }, [connected, on]);
-
-  // 🔄 Reset call state
-  const resetCallState = () => {
-    setIsInCall(false);
-    setIncomingCall(null);
-  };
-
-  // 🔄 Refresh online users
-  const refreshOnlineUsers = () => {
-    if (!connected || !userId) {
-      console.log('⚠️ Cannot refresh - not connected or no userId');
-      return;
-    }
-    
-    console.log('🔄 Requesting online users for:', userId);
-    emit('get_online_users', userId);
-  };
-
-  // 📞 Make a call
-  const handleMakeCall = (targetUser: any) => {
-    console.log('📞 Making call to:', targetUser.userId, 'from:', userId);
-    console.log('🎯 Target user info:', targetUser);
-    
-    emit('make_call', {
-      to: targetUser.userId,
-      signal: { 
-        type: 'call_offer', 
-        from: userId,
-        fromRole: role,
-        fromName: userName,
-        fromEmail: userEmail,
-        timestamp: new Date().toISOString()
-      }
-    });
-    
-    setIsInCall(true);
-    
-    // Navigate to CallScreen (you'll create this next)
-    navigation?.navigate('CallScreen', {
-      targetUser,
-      isOutgoing: true,
-      myUserId: userId,
-      myRole: role,
-    });
-  };
-
-  // ✅ Answer incoming call
-  const handleAnswerCall = () => {
-    if (!incomingCall) return;
-    
-    console.log('✅ Answering call from:', incomingCall.from);
-    
-    emit('answer_call', {
-      to: incomingCall.from,
-      signal: { 
-        type: 'call_answer', 
-        from: userId,
-        fromName: userName,
-        fromRole: role
-      }
-    });
-    
-    navigation?.navigate('CallScreen', {
-      targetUser: { userId: incomingCall.from },
-      isOutgoing: false,
-      incomingCall,
-      myUserId: userId,
-      myRole: role,
-    });
-  };
-
-  // 🚫 Reject incoming call
-  const handleRejectCall = () => {
-    if (!incomingCall) return;
-    
-    console.log('❌ Rejecting call from:', incomingCall.from);
-    
-    emit('reject_call', {
-      to: incomingCall.from,
-      reason: 'User declined',
-      from: userId
-    });
-    
-    resetCallState();
-  };
-
-  // 🎨 Get role-specific configuration
+  // 🎨 Get role-based styling
   const getRoleConfig = () => {
     if (role === 'DOCTOR') {
       return {
+        colors: ['#667eea', '#764ba2'],
         headerTitle: '👨‍⚕️ Doctor Call Center',
-        headerSubtitle: `Welcome Dr. ${userName}`,
-        listTitle: '👥 Online Users',
-        emptyMessage: 'No users online',
-        refreshText: 'Refresh Online Users',
-        colors: ['#1e3c72', '#2a5298'],
-        showingText: `Showing all online users`,
+        userListTitle: 'Available Users',
+        accent: '#667eea',
       };
     } else {
       return {
-        headerTitle: '📞 Patient Call Center', 
-        headerSubtitle: `Welcome ${userName}`,
-        listTitle: '👨‍⚕️ Available Doctors',
-        emptyMessage: 'No doctors available',
-        refreshText: 'Refresh Available Doctors',
-        colors: ['#2a5298', '#1e3c72'],
-        showingText: `Showing doctors only`,
+        colors: ['#f093fb', '#f5576c'],
+        headerTitle: '👤 Patient Call Center',
+        userListTitle: 'Available Doctors',
+        accent: '#f093fb',
       };
     }
   };
 
   const config = getRoleConfig();
 
-  // ⏳ Show incoming call overlay
-  if (incomingCall) {
-    return (
-      <View style={styles.incomingCallContainer}>
-        <LinearGradient colors={config.colors} style={styles.incomingCallGradient}>
-          <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
-          
-          <View style={styles.incomingCallContent}>
-            <Text style={styles.incomingCallText}>📞 Incoming call...</Text>
-            <Text style={styles.callerName}>
-              {incomingCall.fromName || incomingCall.from}
-            </Text>
-            <Text style={styles.callerRole}>
-              {incomingCall.fromRole || 'User'}
-            </Text>
-            {incomingCall.fromEmail && (
-              <Text style={styles.callerEmail}>
-                {incomingCall.fromEmail}
-              </Text>
-            )}
-            
-            <View style={styles.incomingCallButtons}>
-              <TouchableOpacity style={styles.rejectButton} onPress={handleRejectCall}>
-                <Text style={styles.callButtonEmoji}>❌</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity style={styles.acceptButton} onPress={handleAnswerCall}>
-                <Text style={styles.callButtonEmoji}>✅</Text>
-              </TouchableOpacity>
-            </View>
+  // 🚀 Initialize WebRTC when socket connects
+  useEffect(() => {
+    if (connected && emit && on && !initializationAttempted.current) {
+      initializationAttempted.current = true;
+      initializeWebRTC();
+    }
+  }, [connected, emit, on]);
+
+  // 🎧 Initialize WebRTC Service
+  const initializeWebRTC = async () => {
+    try {
+      console.log('🎧 Initializing WebRTC Service...');
+      
+      // Create a socket-like object for WebRTC Service
+      const socketForWebRTC = {
+        emit: emit,
+        on: on,
+        id: 'socket-id', // You might want to get this from your useSocket hook
+      };
+      
+      socketRef.current = socketForWebRTC;
+      
+      // Initialize WebRTC with socket functions and userId
+      WebRTCService.initialize(socketService, userId);
+      
+      // Set up callbacks for WebRTC events
+      WebRTCService.setCallbacks({
+        onIncomingCall: handleIncomingCall,
+        onCallConnected: handleCallConnected,
+        onCallRejected: handleCallRejected,
+        onCallEnded: handleCallEnded,
+        onCallError: handleCallError,
+        onRemoteStream: handleRemoteStream,
+        onConnectionStateChange: handleConnectionStateChange,
+      });
+
+      // Update user info on server using emit function
+      emit('update_user_info', {
+        userId: userId,
+        role: role,
+        name: userName,
+        email: appointmentData.patientId || appointmentData.doctorId,
+      });
+
+      // Get online users
+      fetchOnlineUsers();
+      
+      setIsInitialized(true);
+      console.log('✅ WebRTC Service initialized successfully');
+      
+    } catch (error) {
+      console.error('❌ Error initializing WebRTC:', error);
+      Alert.alert('Initialization Error', 'Failed to setup call service');
+    }
+  };
+
+  // 👥 Fetch online users from server
+  const fetchOnlineUsers = () => {
+    if (!emit || !connected) {
+      console.log('⚠️ Cannot fetch users - no emit function or not connected');
+      return;
+    }
+    
+    console.log('👥 Fetching online users...');
+    setLoading(true);
+    
+    // Use emit function to request online users
+    emit('get_online_users', userId);
+    
+    // Use on function to listen for response
+    const cleanupOnlineUsers = on('online_users', (users: User[]) => {
+      console.log('📥 Received online users:', users.length);
+      
+      // Filter users based on role
+      let filteredUsers = users;
+      if (role === 'PATIENT') {
+        // Patients only see doctors
+        filteredUsers = users.filter(user => user.role === 'DOCTOR');
+      }
+      // Doctors see everyone (no filter needed)
+      
+      setOnlineUsers(filteredUsers);
+      setLoading(false);
+    });
+
+    // Store cleanup function for later use
+    return cleanupOnlineUsers;
+  };
+
+  // 📞 WebRTC Event Handlers
+  const handleIncomingCall = (callData: any) => {
+    console.log('📲 Incoming call received:', callData.from);
+    setIncomingCall({
+      from: callData.from,
+      fromName: callData.fromName || callData.from,
+      fromRole: callData.fromRole || 'User',
+      fromEmail: callData.fromEmail || '',
+      signal: callData.signal,
+    });
+  };
+
+  const handleCallConnected = () => {
+    console.log('✅ Call connected successfully');
+    // Navigation to CallScreen will be handled by makeCall/answerCall
+  };
+
+  const handleCallRejected = (reason: string) => {
+    console.log('❌ Call rejected:', reason);
+    Alert.alert('Call Rejected', `The call was rejected: ${reason}`);
+  };
+
+  const handleCallEnded = () => {
+    console.log('👋 Call ended');
+    // CallScreen will handle navigation back
+  };
+
+  const handleCallError = (error: string) => {
+    console.log('❌ Call error:', error);
+    Alert.alert('Call Error', error);
+  };
+
+  const handleRemoteStream = (stream: any) => {
+    console.log('🎵 Remote stream received');
+    // This will be handled by CallScreen
+  };
+
+  const handleConnectionStateChange = (state: string) => {
+    console.log('🔗 Connection state changed:', state);
+    // Optional: Show connection status in UI
+  };
+
+  // 📞 Make outgoing call
+  const makeCall = async (targetUser: User) => {
+    try {
+      console.log('📞 Making call to:', targetUser.name);
+      
+      // Show loading state
+      Alert.alert('Calling...', `Connecting to ${targetUser.name}`);
+      
+      // Use WebRTC Service to make the call
+      const success = await WebRTCService.makeCall(targetUser.userId);
+      
+      if (success) {
+        console.log('✅ Call initiated successfully');
+        
+        // Navigate to CallScreen
+        navigation.navigate('CallScreen', {
+          targetUser: targetUser,
+          isOutgoing: true,
+          myUserId: userId,
+          myRole: role,
+        });
+      } else {
+        throw new Error('Failed to initialize call');
+      }
+      
+    } catch (error) {
+      console.error('❌ Error making call:', error);
+      Alert.alert('Call Failed', 'Unable to start the call. Please try again.');
+    }
+  };
+
+  // ✅ Accept incoming call
+  const acceptCall = async () => {
+    if (!incomingCall) return;
+    
+    try {
+      console.log('✅ Accepting call from:', incomingCall.from);
+      
+      // Use WebRTC Service to answer the call
+      const success = await WebRTCService.answerCall(incomingCall);
+      
+      if (success) {
+        console.log('✅ Call answered successfully');
+        
+        // Navigate to CallScreen
+        navigation.navigate('CallScreen', {
+          targetUser: {
+            userId: incomingCall.from,
+            name: incomingCall.fromName || incomingCall.from,
+            role: incomingCall.fromRole || 'User',
+            email: incomingCall.fromEmail || '',
+          },
+          isOutgoing: false,
+          myUserId: userId,
+          myRole: role,
+          incomingCall: incomingCall,
+        });
+        
+        // Clear incoming call
+        setIncomingCall(null);
+      } else {
+        throw new Error('Failed to answer call');
+      }
+      
+    } catch (error) {
+      console.error('❌ Error accepting call:', error);
+      Alert.alert('Call Failed', 'Unable to answer the call. Please try again.');
+      setIncomingCall(null);
+    }
+  };
+
+  // ❌ Reject incoming call
+  const rejectCall = () => {
+    if (!incomingCall) return;
+    
+    try {
+      console.log('❌ Rejecting call from:', incomingCall.from);
+      
+      // Use WebRTC Service to reject the call
+      WebRTCService.rejectCall(incomingCall, 'Call declined by user');
+      
+      // Clear incoming call
+      setIncomingCall(null);
+      
+    } catch (error) {
+      console.error('❌ Error rejecting call:', error);
+      setIncomingCall(null);
+    }
+  };
+
+  // 🔄 Refresh online users
+  const refreshUsers = () => {
+    fetchOnlineUsers();
+  };
+
+  // 👤 Render user item
+  const renderUserItem = ({ item }: { item: User }) => (
+    <TouchableOpacity
+      style={[styles.userItem, { borderLeftColor: config.accent }]}
+      onPress={() => makeCall(item)}
+      activeOpacity={0.7}
+    >
+      <View style={styles.userInfo}>
+        <View style={styles.userHeader}>
+          <Text style={styles.userEmoji}>
+            {item.role === 'DOCTOR' ? '👨‍⚕️' : '👤'}
+          </Text>
+          <View style={styles.userDetails}>
+            <Text style={styles.userName}>{item.name}</Text>
+            <Text style={styles.userRole}>{item.role}</Text>
           </View>
-        </LinearGradient>
+        </View>
+        <TouchableOpacity
+          style={[styles.callButton, { backgroundColor: config.accent }]}
+          onPress={() => makeCall(item)}
+        >
+          <Text style={styles.callButtonText}>📞 Call</Text>
+        </TouchableOpacity>
       </View>
-    );
-  }
+    </TouchableOpacity>
+  );
 
   return (
     <View style={styles.container}>
@@ -340,104 +364,107 @@ export default function AudioCallScreen({ route, navigation }: Props) {
         
         <SafeAreaView style={styles.safeArea}>
           
-          {/* 📋 Header with User Info */}
+          {/* 📋 Header */}
           <View style={styles.header}>
+            <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
+              <Text style={styles.backButtonText}>← Back</Text>
+            </TouchableOpacity>
             <Text style={styles.headerTitle}>{config.headerTitle}</Text>
-            <Text style={styles.headerSubtitle}>{config.headerSubtitle}</Text>
-            
-            <View style={styles.statusContainer}>
-              <View style={styles.statusRow}>
-                <Text style={styles.statusText}>
-                  Status: {connected ? '🟢 Online' : '🔴 Offline'}
-                </Text>
-                <Text style={styles.stepText}>
-                  Step: {currentStep}
-                </Text>
-              </View>
-              
-              <View style={styles.userInfoRow}>
-                <Text style={styles.userIdText}>ID: {userId}</Text>
-                <Text style={styles.roleText}>Role: {role}</Text>
-              </View>
-              
-              <Text style={styles.filterText}>{config.showingText}</Text>
-            </View>
+            <TouchableOpacity style={styles.refreshButton} onPress={refreshUsers}>
+              <Text style={styles.refreshButtonText}>🔄</Text>
+            </TouchableOpacity>
           </View>
 
-          {/* 🔄 Refresh Button */}
-          <TouchableOpacity 
-            style={[styles.refreshButton, !connected && styles.disabledButton]} 
-            onPress={refreshOnlineUsers}
-            disabled={!connected}
-          >
-            <Text style={styles.refreshText}>
-              🔄 {config.refreshText}
+          {/* 👤 User Info */}
+          <View style={styles.userSection}>
+            <Text style={styles.welcomeText}>Welcome, {userName}!</Text>
+            <Text style={styles.statusText}>
+              {connected ? '🟢 Connected' : '🔴 Connecting...'}
+              {isInitialized && ' • WebRTC Ready'}
             </Text>
-          </TouchableOpacity>
+            <Text style={styles.debugText}>Server: {SERVER_URL}</Text>
+          </View>
 
-          {/* 👥 Filtered Users List */}
+          {/* 👥 Online Users List */}
           <View style={styles.listContainer}>
-            <Text style={styles.listTitle}>
-              {config.listTitle} ({filteredUsers.length})
-            </Text>
-            
-            <FlatList
-              data={filteredUsers}
-              keyExtractor={(item, index) => item.userId || index.toString()}
-              renderItem={({ item }) => (
-                <View style={styles.userItem}>
-                  <View style={styles.userInfo}>
-                    <Text style={styles.userName}>
-                      {item.role === 'DOCTOR' ? '👨‍⚕️' : '👤'} {item.name || item.userId}
-                    </Text>
-                    <Text style={styles.userRole}>
-                      {item.role || 'User'} • {item.email || 'No email'}
-                    </Text>
-                    <Text style={styles.userMeta}>
-                      ID: {item.userId}
-                    </Text>
-                  </View>
-                  
-                  <TouchableOpacity
-                    style={styles.callButton}
-                    onPress={() => handleMakeCall(item)}
-                  >
-                    <Text style={styles.callButtonText}>📞 Call</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-              ListEmptyComponent={
-                <View style={styles.emptyState}>
-                  <Text style={styles.emptyText}>{config.emptyMessage}</Text>
-                  <Text style={styles.emptySubtext}>
-                    {connected ? 'Pull to refresh or try again later' : 'Connecting...'}
-                  </Text>
-                </View>
-              }
-              refreshing={false}
-              onRefresh={refreshOnlineUsers}
-              showsVerticalScrollIndicator={false}
-            />
-          </View>
+            <View style={styles.listHeader}>
+              <Text style={styles.listTitle}>{config.userListTitle}</Text>
+              <Text style={styles.listCount}>({onlineUsers.length} online)</Text>
+            </View>
 
-          {/* 🔍 Enhanced Debug Info */}
-          <View style={styles.debugContainer}>
-            <Text style={styles.debugTitle}>Debug Info</Text>
-            <Text style={styles.debugText}>User ID: {userId}</Text>
-            <Text style={styles.debugText}>User Name: {userName}</Text>
-            <Text style={styles.debugText}>Role: {role}</Text>
-            <Text style={styles.debugText}>Connected: {connected ? 'Yes' : 'No'}</Text>
-            <Text style={styles.debugText}>Step: {currentStep}</Text>
-            <Text style={styles.debugText}>All Users: {allUsers.length}</Text>
-            <Text style={styles.debugText}>Filtered Users: {filteredUsers.length}</Text>
-            <Text style={styles.debugText}>In Call: {isInCall ? 'Yes' : 'No'}</Text>
+            {loading ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color="#ffffff" />
+                <Text style={styles.loadingText}>Loading users...</Text>
+              </View>
+            ) : onlineUsers.length > 0 ? (
+              <FlatList
+                data={onlineUsers}
+                renderItem={renderUserItem}
+                keyExtractor={(item) => item.userId}
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={styles.listContent}
+              />
+            ) : (
+              <View style={styles.emptyContainer}>
+                <Text style={styles.emptyText}>
+                  {role === 'PATIENT' ? '👨‍⚕️ No doctors online' : '👥 No users online'}
+                </Text>
+                <TouchableOpacity style={styles.retryButton} onPress={refreshUsers}>
+                  <Text style={styles.retryButtonText}>🔄 Refresh</Text>
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
 
         </SafeAreaView>
+
+        {/* 📞 Incoming Call Modal */}
+        <Modal
+          visible={!!incomingCall}
+          transparent={true}
+          animationType="slide"
+          onRequestClose={rejectCall}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.incomingCallModal}>
+              <Text style={styles.modalTitle}>📞 Incoming Call</Text>
+              
+              <View style={styles.callerInfo}>
+                <Text style={styles.callerEmoji}>
+                  {incomingCall?.fromRole === 'DOCTOR' ? '👨‍⚕️' : '👤'}
+                </Text>
+                <Text style={styles.callerName}>
+                  {incomingCall?.fromName || incomingCall?.from}
+                </Text>
+                <Text style={styles.callerRole}>
+                  {incomingCall?.fromRole || 'User'}
+                </Text>
+              </View>
+
+              <View style={styles.callActions}>
+                <TouchableOpacity
+                  style={[styles.actionButton, styles.rejectButton]}
+                  onPress={rejectCall}
+                >
+                  <Text style={styles.actionButtonText}>❌ Reject</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.actionButton, styles.acceptButton]}
+                  onPress={acceptCall}
+                >
+                  <Text style={styles.actionButtonText}>✅ Accept</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+
       </LinearGradient>
     </View>
   );
-}
+};
 
 const styles = StyleSheet.create({
   container: {
@@ -450,237 +477,226 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 20,
   },
-  
-  // Error State
-  errorContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#f5f5f5',
-    padding: 20,
-  },
-  errorText: {
-    fontSize: 18,
-    color: '#d32f2f',
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  errorSubtext: {
-    fontSize: 14,
-    color: '#666',
-    textAlign: 'center',
-  },
-  
+
   // Header
   header: {
-    marginTop: 20,
-    marginBottom: 20,
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#ffffff',
-    marginBottom: 8,
-  },
-  headerSubtitle: {
-    fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.8)',
-    marginBottom: 16,
-  },
-  statusContainer: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 8,
-    padding: 12,
-  },
-  statusRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 4,
-  },
-  statusText: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.9)',
-  },
-  stepText: {
-    fontSize: 12,
-    color: 'rgba(255, 255, 255, 0.7)',
-  },
-  userInfoRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 4,
-  },
-  userIdText: {
-    fontSize: 12,
-    color: 'rgba(255, 255, 255, 0.7)',
-  },
-  roleText: {
-    fontSize: 12,
-    color: 'rgba(255, 255, 255, 0.7)',
-  },
-  filterText: {
-    fontSize: 11,
-    color: 'rgba(255, 255, 255, 0.6)',
-    fontStyle: 'italic',
-  },
-  
-  // Refresh Button
-  refreshButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: 10,
-    padding: 12,
     alignItems: 'center',
-    marginBottom: 20,
+    marginTop: 20,
+    marginBottom: 30,
   },
-  disabledButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    opacity: 0.5,
+  backButton: {
+    padding: 8,
   },
-  refreshText: {
+  backButtonText: {
     color: '#ffffff',
     fontSize: 16,
     fontWeight: '600',
   },
-  
-  // List
-  listContainer: {
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#ffffff',
+    textAlign: 'center',
     flex: 1,
   },
-  listTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#ffffff',
-    marginBottom: 16,
+  refreshButton: {
+    padding: 8,
   },
-  
-  // User Item
-  userItem: {
+  refreshButtonText: {
+    fontSize: 20,
+  },
+
+  // User Section
+  userSection: {
+    alignItems: 'center',
+    marginBottom: 30,
+  },
+  welcomeText: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#ffffff',
+    marginBottom: 8,
+  },
+  statusText: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.8)',
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  debugText: {
+    fontSize: 10,
+    color: 'rgba(255, 255, 255, 0.6)',
+    textAlign: 'center',
+  },
+
+  // List Container
+  listContainer: {
+    flex: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 16,
+    padding: 16,
+  },
+  listHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    marginBottom: 16,
+  },
+  listTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#ffffff',
+  },
+  listCount: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.7)',
+  },
+  listContent: {
+    paddingBottom: 20,
+  },
+
+  // User Item
+  userItem: {
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
+    borderLeftWidth: 4,
   },
   userInfo: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  userHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  userEmoji: {
+    fontSize: 24,
+    marginRight: 12,
+  },
+  userDetails: {
     flex: 1,
   },
   userName: {
     fontSize: 16,
     fontWeight: '600',
     color: '#ffffff',
-    marginBottom: 4,
+    marginBottom: 2,
   },
   userRole: {
     fontSize: 12,
     color: 'rgba(255, 255, 255, 0.7)',
-    marginBottom: 2,
-  },
-  userMeta: {
-    fontSize: 10,
-    color: 'rgba(255, 255, 255, 0.5)',
   },
   callButton: {
-    backgroundColor: '#4CAF50',
-    borderRadius: 8,
     paddingHorizontal: 16,
     paddingVertical: 8,
+    borderRadius: 20,
   },
   callButtonText: {
     color: '#ffffff',
     fontSize: 14,
     fontWeight: '600',
   },
-  
-  // Empty State
-  emptyState: {
+
+  // Loading & Empty States
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 40,
+  },
+  loadingText: {
+    color: '#ffffff',
+    marginTop: 16,
+    fontSize: 16,
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   emptyText: {
-    fontSize: 16,
     color: 'rgba(255, 255, 255, 0.8)',
-    marginBottom: 8,
+    fontSize: 16,
+    textAlign: 'center',
+    marginBottom: 20,
   },
-  emptySubtext: {
+  retryButton: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 20,
+  },
+  retryButtonText: {
+    color: '#ffffff',
     fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.6)',
+    fontWeight: '600',
   },
-  
-  // Incoming Call Overlay
-  incomingCallContainer: {
+
+  // Incoming Call Modal
+  modalOverlay: {
     flex: 1,
-  },
-  incomingCallGradient: {
-    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  incomingCallContent: {
+  incomingCallModal: {
+    backgroundColor: '#ffffff',
+    borderRadius: 20,
+    padding: 30,
     alignItems: 'center',
+    minWidth: 300,
   },
-  incomingCallText: {
+  modalTitle: {
     fontSize: 20,
-    color: '#ffffff',
-    marginBottom: 16,
+    fontWeight: '700',
+    color: '#333333',
+    marginBottom: 20,
+  },
+  callerInfo: {
+    alignItems: 'center',
+    marginBottom: 30,
+  },
+  callerEmoji: {
+    fontSize: 48,
+    marginBottom: 12,
   },
   callerName: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#ffffff',
-    marginBottom: 8,
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#333333',
+    marginBottom: 4,
   },
   callerRole: {
-    fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.8)',
-    marginBottom: 8,
-  },
-  callerEmail: {
     fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.7)',
-    marginBottom: 40,
+    color: '#666666',
   },
-  incomingCallButtons: {
+  callActions: {
     flexDirection: 'row',
-    gap: 40,
+    gap: 20,
   },
-  acceptButton: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
-    backgroundColor: '#4CAF50',
-    justifyContent: 'center',
-    alignItems: 'center',
+  actionButton: {
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 25,
+    minWidth: 100,
   },
   rejectButton: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
-    backgroundColor: '#F44336',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: '#FF4757',
   },
-  callButtonEmoji: {
-    fontSize: 24,
+  acceptButton: {
+    backgroundColor: '#2ED573',
   },
-  
-  // Debug
-  debugContainer: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 8,
-    padding: 12,
-    marginTop: 16,
-  },
-  debugTitle: {
-    fontSize: 14,
-    fontWeight: 'bold',
+  actionButtonText: {
     color: '#ffffff',
-    marginBottom: 8,
-  },
-  debugText: {
-    fontSize: 12,
-    color: 'rgba(255, 255, 255, 0.8)',
-    marginBottom: 2,
+    fontSize: 16,
+    fontWeight: '600',
+    textAlign: 'center',
   },
 });
+
+export default AudioCallScreen;

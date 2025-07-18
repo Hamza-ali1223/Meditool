@@ -15,7 +15,7 @@ import { Provider } from 'react-redux';
 import store from './store/store';
 import Bottomtabnavigator from './Screens/BottomTabNavigator.tsx/bottomtabnavigator';
 import AppointmentDetails from './Screens/AppointmentDetails/AppointmentDetails';
-import AvailableUsersScreen from './Screens/AudioCall/AvailbleUsersScreen';
+
 import AudioCallScreen from './Screens/AudioCall/AudioCallScreen';
 import { AuthProvider } from './components/Contexts/AuthContext';
 import RoleSelectionScreen from './Screens/RoleSelection/RoleSelectionScreen';
@@ -68,11 +68,7 @@ const App = () => {
           <Stack.Screen name='BookAppointment' component={BookAppointment}></Stack.Screen>
           <Stack.Screen name="Appointment" component={Appointment}></Stack.Screen>
           <Stack.Screen name='AppointmentDetails' component={AppointmentDetails}></Stack.Screen>
-          <Stack.Screen 
-  name="AvailableUsers" 
-  component={AvailableUsersScreen}
-  options={{ headerShown: false }}
-/>
+          
 <Stack.Screen 
   name="AudioCall" 
   component={AudioCallScreen}

@@ -45,7 +45,7 @@ const AudioCallScreen = ({ route }) => {
   
 
   useEffect(() => {
-    socket.current = io(SERVER_URL, {
+    socket.current = io("https://beautiful-vision-production.up.railway.app/", {
       transports: ['websocket'],
     });
 

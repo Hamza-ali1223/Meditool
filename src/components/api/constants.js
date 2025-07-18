@@ -1,6 +1,6 @@
 import keychain from 'react-native-keychain'
 
-export const BASE_URL= "https://704862b91b58.ngrok-free.app";
+export const BASE_URL= "https://docspot-backend-production.up.railway.app"
 export const API_PATH ={
     DOCTORS:'/api/doctors',
     SPECIALITY:'/api/specialities',

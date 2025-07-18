@@ -97,7 +97,7 @@
             <Text style={styles.speciality}>
               {doctorSpeciality}
             </Text>
-            <Text style={{fontFamily:"Lato-Regular", color:'white',marginTop:vs(10)}}>Patient Name: {appointment?.patient?.patientName}</Text>
+            <Text style={{fontFamily:"Lato-Regular", color:'white',marginTop:vs(10)}}>Patient Name: {appointment?.patient?.patientName||appointment?.patient?.name}</Text>
           </View>
           
           {/* Date and Time Section */}
